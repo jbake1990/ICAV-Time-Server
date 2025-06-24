@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Clock, Users, Settings, Download, Plus, X, UserPlus } from 'lucide-react';
+import { Clock, Users, Settings, Download, X, UserPlus } from 'lucide-react';
 import { TimeEntry, TimeEntryFilters, DashboardStats, User } from './types';
 import { api } from './services/api';
 import DashboardStatsComponent from './components/DashboardStats';
