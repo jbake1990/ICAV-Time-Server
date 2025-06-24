@@ -1,18 +1,23 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Clock, Users, Settings, Download } from 'lucide-react';
-import { TimeEntry, TimeEntryFilters, DashboardStats } from './types';
+import { Clock, Users, Settings, Download, Plus, X, UserPlus } from 'lucide-react';
+import { TimeEntry, TimeEntryFilters, DashboardStats, User } from './types';
 import { api } from './services/api';
 import DashboardStatsComponent from './components/DashboardStats';
 import TimeEntryFiltersComponent from './components/TimeEntryFilters';
 import TimeEntryCard from './components/TimeEntryCard';
-import { formatDate } from './utils/timeUtils';
+import { formatDate, formatTime } from './utils/timeUtils';
 
 function App() {
   const [filters, setFilters] = useState<TimeEntryFilters>({});
   const [selectedEntry, setSelectedEntry] = useState<TimeEntry | null>(null);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [newUser, setNewUser] = useState({ username: '', displayName: '' });
+  const [creatingUser, setCreatingUser] = useState(false);
 
   // Load time entries from API
   useEffect(() => {
@@ -44,6 +49,25 @@ function App() {
     };
 
     loadTimeEntries();
+  }, []);
+
+  // Load users from API
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const apiUsers = await api.getUsers();
+        const formattedUsers: User[] = apiUsers.map(user => ({
+          id: user.id,
+          username: user.username,
+          displayName: user.displayName
+        }));
+        setUsers(formattedUsers);
+      } catch (err) {
+        console.error('Failed to load users:', err);
+      }
+    };
+
+    loadUsers();
   }, []);
 
   // Filter time entries based on current filters
@@ -123,9 +147,80 @@ function App() {
     return groups;
   }, [filteredEntries]);
 
+  // CSV Export functionality
   const handleExport = () => {
-    // TODO: Implement CSV export functionality
-    console.log('Export functionality to be implemented');
+    const csvHeaders = [
+      'Date',
+      'Technician Name',
+      'Customer Name',
+      'Clock In Time',
+      'Clock Out Time',
+      'Lunch Start',
+      'Lunch End',
+      'Total Duration',
+      'Lunch Duration',
+      'Status'
+    ];
+
+    const csvData = filteredEntries.map(entry => [
+      formatDate(entry.clockInTime),
+      entry.technicianName,
+      entry.customerName,
+      formatTime(entry.clockInTime),
+      entry.clockOutTime ? formatTime(entry.clockOutTime) : 'N/A',
+      entry.lunchStartTime ? formatTime(entry.lunchStartTime) : 'N/A',
+      entry.lunchEndTime ? formatTime(entry.lunchEndTime) : 'N/A',
+      entry.formattedDuration || 'N/A',
+      entry.formattedLunchDuration || 'N/A',
+      entry.isActive ? (entry.isOnLunch ? 'On Lunch' : 'Active') : 'Completed'
+    ]);
+
+    const csvContent = [csvHeaders, ...csvData]
+      .map(row => row.map(cell => `"${cell}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `time_entries_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  // Create new user
+  const handleCreateUser = async () => {
+    if (!newUser.username.trim() || !newUser.displayName.trim()) {
+      alert('Please fill in both username and display name');
+      return;
+    }
+
+    try {
+      setCreatingUser(true);
+      const createdUser = await api.createUser({
+        username: newUser.username.trim(),
+        displayName: newUser.displayName.trim()
+      });
+      
+      setUsers(prev => [...prev, {
+        id: createdUser.id,
+        username: createdUser.username,
+        displayName: createdUser.displayName
+      }]);
+      
+      setNewUser({ username: '', displayName: '' });
+      setShowCreateUser(false);
+      alert('User created successfully!');
+    } catch (err) {
+      console.error('Failed to create user:', err);
+      alert('Failed to create user. Please try again.');
+    } finally {
+      setCreatingUser(false);
+    }
   };
 
   if (loading) {
@@ -166,7 +261,10 @@ function App() {
                 <Download className="w-4 h-4" />
                 <span>Export</span>
               </button>
-              <button className="p-2 text-gray-400 hover:text-gray-600">
+              <button
+                onClick={() => setShowSettings(true)}
+                className="p-2 text-gray-400 hover:text-gray-600"
+              >
                 <Settings className="w-5 h-5" />
               </button>
             </div>
@@ -233,6 +331,152 @@ function App() {
         </div>
       </main>
 
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">Settings</h2>
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* User Management Section */}
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">User Management</h3>
+                  <button
+                    onClick={() => setShowCreateUser(true)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Add User</span>
+                  </button>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4">
+                  {users.length === 0 ? (
+                    <p className="text-gray-500 text-center py-4">No users found. Add your first user!</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {users.map(user => (
+                        <div key={user.id} className="flex items-center justify-between bg-white p-3 rounded-lg">
+                          <div>
+                            <div className="font-medium text-gray-900">{user.displayName}</div>
+                            <div className="text-sm text-gray-500">@{user.username}</div>
+                          </div>
+                          <div className="text-sm text-gray-400">ID: {user.id.slice(0, 8)}...</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Export Section */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Export Data</h3>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-gray-600 mb-4">
+                    Export filtered time entries to CSV format for analysis in Excel or other tools.
+                  </p>
+                  <button
+                    onClick={() => {
+                      handleExport();
+                      setShowSettings(false);
+                    }}
+                    className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Export Current View</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create User Modal */}
+      {showCreateUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Create New User</h2>
+                <button
+                  onClick={() => {
+                    setShowCreateUser(false);
+                    setNewUser({ username: '', displayName: '' });
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Username *
+                  </label>
+                  <input
+                    type="text"
+                    value={newUser.username}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, username: e.target.value }))}
+                    placeholder="john.doe"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Username should be lowercase with dots or underscores
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Display Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={newUser.displayName}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, displayName: e.target.value }))}
+                    placeholder="John Doe"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Full name as it will appear in the interface
+                  </p>
+                </div>
+
+                <div className="flex space-x-3 pt-4">
+                  <button
+                    onClick={() => {
+                      setShowCreateUser(false);
+                      setNewUser({ username: '', displayName: '' });
+                    }}
+                    className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateUser}
+                    disabled={creatingUser || !newUser.username.trim() || !newUser.displayName.trim()}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {creatingUser ? 'Creating...' : 'Create User'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Entry Detail Modal */}
       {selectedEntry && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -244,7 +488,7 @@ function App() {
                   onClick={() => setSelectedEntry(null)}
                   className="text-gray-400 hover:text-gray-600"
                 >
-                  ×
+                  <X className="w-6 h-6" />
                 </button>
               </div>
               <TimeEntryCard entry={selectedEntry} />
