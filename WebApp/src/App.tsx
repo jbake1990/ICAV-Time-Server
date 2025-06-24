@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Clock, Users, Settings, Download } from 'lucide-react';
-import { TimeEntry, TimeEntryFilters } from './types';
-import { mockTimeEntries, mockDashboardStats } from './data/mockData';
+import { TimeEntry, TimeEntryFilters, DashboardStats } from './types';
+import { api } from './services/api';
 import DashboardStatsComponent from './components/DashboardStats';
 import TimeEntryFiltersComponent from './components/TimeEntryFilters';
 import TimeEntryCard from './components/TimeEntryCard';
@@ -10,10 +10,45 @@ import { formatDate } from './utils/timeUtils';
 function App() {
   const [filters, setFilters] = useState<TimeEntryFilters>({});
   const [selectedEntry, setSelectedEntry] = useState<TimeEntry | null>(null);
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load time entries from API
+  useEffect(() => {
+    const loadTimeEntries = async () => {
+      try {
+        setLoading(true);
+        const apiEntries = await api.getTimeEntries();
+        
+        // Convert API data to frontend format
+        const formattedEntries: TimeEntry[] = apiEntries.map(entry => ({
+          ...entry,
+          clockInTime: new Date(entry.clockInTime),
+          clockOutTime: entry.clockOutTime ? new Date(entry.clockOutTime) : undefined,
+          lunchStartTime: entry.lunchStartTime ? new Date(entry.lunchStartTime) : undefined,
+          lunchEndTime: entry.lunchEndTime ? new Date(entry.lunchEndTime) : undefined,
+        }));
+        
+        setTimeEntries(formattedEntries);
+        setError(null);
+      } catch (err) {
+        console.error('Failed to load time entries:', err);
+        setError('Failed to load time entries. Using sample data.');
+        // Fallback to mock data if API fails
+        const { mockTimeEntries } = await import('./data/mockData');
+        setTimeEntries(mockTimeEntries);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTimeEntries();
+  }, []);
 
   // Filter time entries based on current filters
   const filteredEntries = useMemo(() => {
-    let filtered = [...mockTimeEntries];
+    let filtered = [...timeEntries];
 
     if (filters.technicianName) {
       filtered = filtered.filter(entry =>
@@ -43,17 +78,36 @@ function App() {
     }
 
     return filtered.sort((a, b) => b.clockInTime.getTime() - a.clockInTime.getTime());
-  }, [filters]);
+  }, [filters, timeEntries]);
+
+  // Calculate dashboard stats from real data
+  const dashboardStats = useMemo((): DashboardStats => {
+    const totalEntries = timeEntries.length;
+    const activeEntries = timeEntries.filter(entry => entry.isActive).length;
+    const totalHours = timeEntries
+      .filter(entry => entry.duration)
+      .reduce((sum, entry) => sum + (entry.duration || 0), 0) / (1000 * 60 * 60);
+    const averageHoursPerDay = totalHours / Math.max(1, new Set(timeEntries.map(e => e.clockInTime.toDateString())).size);
+    const techniciansWorking = new Set(timeEntries.filter(entry => entry.isActive).map(entry => entry.userId)).size;
+
+    return {
+      totalEntries,
+      activeEntries,
+      totalHours,
+      averageHoursPerDay,
+      techniciansWorking,
+    };
+  }, [timeEntries]);
 
   // Get unique technician and customer names for filters
   const technicianNames = useMemo(() => 
-    [...new Set(mockTimeEntries.map(entry => entry.technicianName))].sort(),
-    []
+    [...new Set(timeEntries.map(entry => entry.technicianName))].sort(),
+    [timeEntries]
   );
 
   const customerNames = useMemo(() => 
-    [...new Set(mockTimeEntries.map(entry => entry.customerName))].sort(),
-    []
+    [...new Set(timeEntries.map(entry => entry.customerName))].sort(),
+    [timeEntries]
   );
 
   // Group entries by date
@@ -74,6 +128,18 @@ function App() {
     console.log('Export functionality to be implemented');
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Clock className="w-12 h-12 text-primary-600 mx-auto mb-4 animate-spin" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Loading...</h2>
+          <p className="text-gray-500">Fetching time entries from database</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -88,6 +154,11 @@ function App() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              {error && (
+                <div className="text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-lg">
+                  ⚠️ {error}
+                </div>
+              )}
               <button
                 onClick={handleExport}
                 className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
@@ -106,7 +177,7 @@ function App() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Dashboard Stats */}
-        <DashboardStatsComponent stats={mockDashboardStats} />
+        <DashboardStatsComponent stats={dashboardStats} />
 
         {/* Filters */}
         <TimeEntryFiltersComponent
@@ -123,7 +194,7 @@ function App() {
               Time Entries ({filteredEntries.length})
             </h2>
             <div className="text-sm text-gray-500">
-              Showing {filteredEntries.length} of {mockTimeEntries.length} entries
+              Showing {filteredEntries.length} of {timeEntries.length} entries
             </div>
           </div>
         </div>
@@ -147,12 +218,15 @@ function App() {
             </div>
           ))}
 
-          {filteredEntries.length === 0 && (
+          {filteredEntries.length === 0 && !loading && (
             <div className="text-center py-12">
               <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No time entries found</h3>
               <p className="text-gray-500">
-                Try adjusting your filters to see more results.
+                {timeEntries.length === 0 
+                  ? "No time entries in database. Add some entries to get started."
+                  : "Try adjusting your filters to see more results."
+                }
               </p>
             </div>
           )}
