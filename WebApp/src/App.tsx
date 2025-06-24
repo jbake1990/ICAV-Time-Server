@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Clock, Users, Settings, Download } from 'lucide-react';
-import { TimeEntry, TimeEntryFilters, DashboardStats } from './types';
+import { TimeEntry, TimeEntryFilters } from './types';
 import { mockTimeEntries, mockDashboardStats } from './data/mockData';
 import DashboardStatsComponent from './components/DashboardStats';
 import TimeEntryFiltersComponent from './components/TimeEntryFilters';

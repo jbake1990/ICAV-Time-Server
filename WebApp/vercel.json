@@ -11,6 +11,10 @@
   ],
   "routes": [
     {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
       "src": "/static/(.*)",
       "dest": "/static/$1"
     },
@@ -27,7 +31,9 @@
       "dest": "/index.html"
     }
   ],
-  "env": {
-    "REACT_APP_API_URL": ""
+  "functions": {
+    "api/*.js": {
+      "runtime": "nodejs18.x"
+    }
   }
 } 
