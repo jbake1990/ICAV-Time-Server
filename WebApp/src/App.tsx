@@ -1,13 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Clock, Users, Settings, Download, X, UserPlus, Trash2 } from 'lucide-react';
+import { Clock, Users, Settings, Download, X, UserPlus, Trash2, LogOut, UserCheck, Shield } from 'lucide-react';
 import { TimeEntry, TimeEntryFilters, DashboardStats, User } from './types';
 import { api } from './services/api';
 import DashboardStatsComponent from './components/DashboardStats';
 import TimeEntryFiltersComponent from './components/TimeEntryFilters';
 import TimeEntryCard from './components/TimeEntryCard';
+import { LoginForm } from './components/LoginForm';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { formatDate, formatTime } from './utils/timeUtils';
 
-function App() {
+function AppContent() {
+  const { state: authState, login, logout, clearError } = useAuth();
   const [filters, setFilters] = useState<TimeEntryFilters>({});
   const [selectedEntry, setSelectedEntry] = useState<TimeEntry | null>(null);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
@@ -16,7 +19,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showCreateUser, setShowCreateUser] = useState(false);
-  const [newUser, setNewUser] = useState({ username: '', displayName: '' });
+  const [newUser, setNewUser] = useState({ username: '', displayName: '', password: '', role: 'tech' });
   const [creatingUser, setCreatingUser] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState(false);
@@ -61,7 +64,8 @@ function App() {
         const formattedUsers: User[] = apiUsers.map(user => ({
           id: user.id,
           username: user.username,
-          displayName: user.displayName
+          displayName: user.displayName,
+          role: (user as any).role || 'tech' // Default to tech role if not provided
         }));
         setUsers(formattedUsers);
       } catch (err) {
@@ -196,8 +200,13 @@ function App() {
 
   // Create new user
   const handleCreateUser = async () => {
-    if (!newUser.username.trim() || !newUser.displayName.trim()) {
-      alert('Please fill in both username and display name');
+    if (!newUser.username.trim() || !newUser.displayName.trim() || !newUser.password.trim()) {
+      alert('Please fill in username, display name, and password');
+      return;
+    }
+
+    if (newUser.password.length < 6) {
+      alert('Password must be at least 6 characters long');
       return;
     }
 
@@ -205,16 +214,19 @@ function App() {
       setCreatingUser(true);
       const createdUser = await api.createUser({
         username: newUser.username.trim(),
-        displayName: newUser.displayName.trim()
+        displayName: newUser.displayName.trim(),
+        password: newUser.password,
+        role: newUser.role
       });
       
       setUsers(prev => [...prev, {
         id: createdUser.id,
         username: createdUser.username,
-        displayName: createdUser.displayName
+        displayName: createdUser.displayName,
+        role: (createdUser as any).role || 'tech' // Default to tech role if not provided
       }]);
       
-      setNewUser({ username: '', displayName: '' });
+      setNewUser({ username: '', displayName: '', password: '', role: 'tech' });
       setShowCreateUser(false);
       alert('User created successfully!');
     } catch (err) {
@@ -245,6 +257,33 @@ function App() {
     }
   };
 
+  // Handle authentication loading
+  if (authState.isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Clock className="w-12 h-12 text-primary-600 mx-auto mb-4 animate-spin" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Checking authentication...</h2>
+          <p className="text-gray-500">Please wait</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login form if not authenticated
+  if (!authState.isAuthenticated) {
+    return (
+      <LoginForm
+        onLogin={async (username, password) => {
+          await login(username, password);
+          clearError();
+        }}
+        isLoading={authState.isLoading}
+        error={authState.error}
+      />
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -271,23 +310,55 @@ function App() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              {/* User Info */}
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2 text-sm">
+                  {authState.user?.role === 'admin' ? (
+                    <Shield className="w-4 h-4 text-orange-500" />
+                  ) : (
+                    <UserCheck className="w-4 h-4 text-blue-500" />
+                  )}
+                  <span className="text-gray-700">{authState.user?.displayName}</span>
+                  <span className="text-gray-500">
+                    ({authState.user?.role === 'admin' ? 'Admin' : 'Tech'})
+                  </span>
+                </div>
+              </div>
+
               {error && (
                 <div className="text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-lg">
                   ⚠️ {error}
                 </div>
               )}
+
+              {/* Admin-only features */}
+              {authState.user?.role === 'admin' && (
+                <>
+                  <button
+                    onClick={handleExport}
+                    className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Export</span>
+                  </button>
+                  <button
+                    onClick={() => setShowSettings(true)}
+                    className="p-2 text-gray-400 hover:text-gray-600"
+                    title="Settings"
+                  >
+                    <Settings className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+
+              {/* Logout Button */}
               <button
-                onClick={handleExport}
-                className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                onClick={logout}
+                className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-900 transition-colors"
+                title="Logout"
               >
-                <Download className="w-4 h-4" />
-                <span>Export</span>
-              </button>
-              <button
-                onClick={() => setShowSettings(true)}
-                className="p-2 text-gray-400 hover:text-gray-600"
-              >
-                <Settings className="w-5 h-5" />
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Logout</span>
               </button>
             </div>
           </div>
@@ -353,8 +424,8 @@ function App() {
         </div>
       </main>
 
-      {/* Settings Modal */}
-      {showSettings && (
+      {/* Settings Modal - Admin Only */}
+      {showSettings && authState.user?.role === 'admin' && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
@@ -389,8 +460,20 @@ function App() {
                       {users.map(user => (
                         <div key={user.id} className="flex items-center justify-between bg-white p-3 rounded-lg">
                           <div>
-                            <div className="font-medium text-gray-900">{user.displayName}</div>
+                            <div className="flex items-center space-x-2">
+                              <div className="font-medium text-gray-900">{user.displayName}</div>
+                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                user.role === 'admin' 
+                                  ? 'bg-orange-100 text-orange-800' 
+                                  : 'bg-blue-100 text-blue-800'
+                              }`}>
+                                {user.role === 'admin' ? 'Admin' : 'Tech'}
+                              </span>
+                            </div>
                             <div className="text-sm text-gray-500">@{user.username}</div>
+                            {user.email && (
+                              <div className="text-sm text-gray-400">{user.email}</div>
+                            )}
                           </div>
                           <div className="flex items-center space-x-3">
                             <div className="text-sm text-gray-400">ID: {user.id.slice(0, 8)}...</div>
@@ -504,7 +587,7 @@ function App() {
                 <button
                   onClick={() => {
                     setShowCreateUser(false);
-                    setNewUser({ username: '', displayName: '' });
+                    setNewUser({ username: '', displayName: '', password: '', role: 'tech' });
                   }}
                   className="text-gray-400 hover:text-gray-600"
                 >
@@ -545,11 +628,44 @@ function App() {
                   </p>
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Password *
+                  </label>
+                  <input
+                    type="password"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
+                    placeholder="Enter initial password"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    User can change this password after first login
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Role *
+                  </label>
+                  <select
+                    value={newUser.role}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, role: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value="tech">Technician</option>
+                    <option value="admin">Administrator</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Technicians can only view data, Admins can manage users and export data
+                  </p>
+                </div>
+
                 <div className="flex space-x-3 pt-4">
                   <button
                     onClick={() => {
                       setShowCreateUser(false);
-                      setNewUser({ username: '', displayName: '' });
+                      setNewUser({ username: '', displayName: '', password: '', role: 'tech' });
                     }}
                     className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                   >
@@ -557,7 +673,7 @@ function App() {
                   </button>
                   <button
                     onClick={handleCreateUser}
-                    disabled={creatingUser || !newUser.username.trim() || !newUser.displayName.trim()}
+                    disabled={creatingUser || !newUser.username.trim() || !newUser.displayName.trim() || !newUser.password.trim()}
                     className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {creatingUser ? 'Creating...' : 'Create User'}
@@ -589,6 +705,15 @@ function App() {
         </div>
       )}
     </div>
+  );
+}
+
+// Main App component with AuthProvider wrapper
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

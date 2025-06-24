@@ -15,14 +15,25 @@ class TimeTrackerViewModel: ObservableObject {
     @Published var currentStatus: ClockStatus = .clockedOut
     @Published var showingAlert = false
     @Published var alertMessage = ""
+    @Published var isSyncing = false
+    @Published var syncMessage = ""
     
     private let userDefaults = UserDefaults.standard
     private let timeEntriesKey = "TimeEntries"
+    private let lastSyncKey = "LastSyncDate"
     private let authManager: AuthManager
+    private let apiService = APIService.shared
     
     init(authManager: AuthManager) {
         self.authManager = authManager
         loadData()
+        
+        // Start periodic sync when user is authenticated
+        if authManager.isAuthenticated {
+            Task {
+                await performSync()
+            }
+        }
     }
     
     func clockIn() {
@@ -36,12 +47,17 @@ class TimeTrackerViewModel: ObservableObject {
             return
         }
         
-        let newEntry = TimeEntry(
+        var newEntry = TimeEntry(
             userId: currentUser.id,
             technicianName: currentUser.displayName,
             customerName: customerName.trimmingCharacters(in: .whitespacesAndNewlines),
             clockInTime: Date()
         )
+        
+        // Mark for sync if we have connectivity
+        if authManager.isOnline {
+            newEntry.markForSync()
+        }
         
         timeEntries.append(newEntry)
         currentStatus = .clockedIn(newEntry)
@@ -49,6 +65,13 @@ class TimeTrackerViewModel: ObservableObject {
         
         // Clear customer name for next entry
         customerName = ""
+        
+        // Try to sync immediately if online
+        if authManager.isOnline {
+            Task {
+                await syncEntry(newEntry)
+            }
+        }
     }
     
     func clockOut() {
@@ -59,8 +82,16 @@ class TimeTrackerViewModel: ObservableObject {
         
         if let index = timeEntries.firstIndex(where: { $0.id == activeEntry.id }) {
             timeEntries[index].clockOutTime = Date()
+            timeEntries[index].markForSync()
             currentStatus = .clockedOut
             saveData()
+            
+            // Try to sync the updated entry if online
+            if authManager.isOnline {
+                Task {
+                    await syncEntry(timeEntries[index])
+                }
+            }
         }
     }
     
@@ -75,13 +106,21 @@ class TimeTrackerViewModel: ObservableObject {
             // Start lunch for active job
             if let index = timeEntries.firstIndex(where: { $0.id == activeEntry.id }) {
                 timeEntries[index].lunchStartTime = Date()
+                timeEntries[index].markForSync()
                 currentStatus = .onLunch(timeEntries[index])
                 saveData()
+                
+                // Try to sync the updated entry if online
+                if authManager.isOnline {
+                    Task {
+                        await syncEntry(timeEntries[index])
+                    }
+                }
             }
             
         case .clockedOut:
             // Create a lunch-only entry
-            let lunchEntry = TimeEntry(
+            var lunchEntry = TimeEntry(
                 userId: currentUser.id,
                 technicianName: currentUser.displayName,
                 customerName: "Lunch Break",
@@ -89,9 +128,20 @@ class TimeTrackerViewModel: ObservableObject {
                 lunchStartTime: Date()
             )
             
+            if authManager.isOnline {
+                lunchEntry.markForSync()
+            }
+            
             timeEntries.append(lunchEntry)
             currentStatus = .onLunch(lunchEntry)
             saveData()
+            
+            // Try to sync immediately if online
+            if authManager.isOnline {
+                Task {
+                    await syncEntry(lunchEntry)
+                }
+            }
             
         case .onLunch:
             showAlert("Already on lunch break")
@@ -106,6 +156,7 @@ class TimeTrackerViewModel: ObservableObject {
         
         if let index = timeEntries.firstIndex(where: { $0.id == lunchEntry.id }) {
             timeEntries[index].lunchEndTime = Date()
+            timeEntries[index].markForSync()
             
             // If this was a lunch-only entry, clock out completely
             if timeEntries[index].customerName == "Lunch Break" {
@@ -117,6 +168,13 @@ class TimeTrackerViewModel: ObservableObject {
             }
             
             saveData()
+            
+            // Try to sync the updated entry if online
+            if authManager.isOnline {
+                Task {
+                    await syncEntry(timeEntries[index])
+                }
+            }
         }
     }
     
@@ -206,5 +264,164 @@ class TimeTrackerViewModel: ObservableObject {
             entry.clockInTime >= today &&
             entry.clockInTime < tomorrow
         }
+    }
+    
+    // MARK: - Sync Methods
+    
+    func performSync() async {
+        guard let token = authManager.getCurrentToken() else {
+            return
+        }
+        
+        await MainActor.run {
+            self.isSyncing = true
+            self.syncMessage = "Syncing data..."
+        }
+        
+        do {
+            // First, sync pending local entries to server
+            await syncPendingEntries(token: token)
+            
+            // Then, fetch any new entries from server
+            await fetchServerEntries(token: token)
+            
+            await MainActor.run {
+                self.isSyncing = false
+                self.syncMessage = "Sync completed"
+                self.userDefaults.set(Date(), forKey: self.lastSyncKey)
+            }
+            
+        } catch {
+            await MainActor.run {
+                self.isSyncing = false
+                self.syncMessage = "Sync failed: \(error.localizedDescription)"
+            }
+        }
+    }
+    
+    private func syncPendingEntries(token: String) async {
+        let pendingEntries = timeEntries.filter { $0.needsSync }
+        
+        if pendingEntries.isEmpty {
+            return
+        }
+        
+        await MainActor.run {
+            self.syncMessage = "Uploading \(pendingEntries.count) entries..."
+        }
+        
+        let results = await apiService.submitPendingEntries(pendingEntries, token: token)
+        
+        await MainActor.run {
+            for (index, result) in results.enumerated() {
+                let localEntry = pendingEntries[index]
+                
+                if let entryIndex = self.timeEntries.firstIndex(where: { $0.id == localEntry.id }) {
+                    switch result {
+                    case .success(let apiEntry):
+                        if let serverId = apiEntry.id {
+                            self.timeEntries[entryIndex].markAsSynced(serverId: serverId)
+                        }
+                    case .failure(let error):
+                        print("Failed to sync entry \(localEntry.id): \(error)")
+                    }
+                }
+            }
+            
+            self.saveData()
+        }
+    }
+    
+    private func fetchServerEntries(token: String) async {
+        do {
+            await MainActor.run {
+                self.syncMessage = "Downloading server data..."
+            }
+            
+            let apiEntries = try await apiService.fetchTimeEntries(token: token)
+            let serverEntries = apiEntries.compactMap { apiService.convertToTimeEntry($0) }
+            
+            await MainActor.run {
+                // Merge server entries with local entries
+                self.mergeServerEntries(serverEntries)
+                self.saveData()
+            }
+            
+        } catch {
+            print("Failed to fetch server entries: \(error)")
+        }
+    }
+    
+    private func mergeServerEntries(_ serverEntries: [TimeEntry]) {
+        guard let currentUser = authManager.currentUser else { return }
+        
+        // Filter server entries for current user
+        let userServerEntries = serverEntries.filter { $0.userId == currentUser.id }
+        
+        for serverEntry in userServerEntries {
+            // Check if we already have this entry locally
+            let existingIndex = timeEntries.firstIndex { localEntry in
+                localEntry.serverId == serverEntry.serverId ||
+                (abs(localEntry.clockInTime.timeIntervalSince(serverEntry.clockInTime)) < 60 &&
+                 localEntry.customerName == serverEntry.customerName)
+            }
+            
+            if let index = existingIndex {
+                // Update existing entry with server data if it's newer
+                if serverEntry.lastModified > timeEntries[index].lastModified {
+                    var updatedEntry = serverEntry
+                    updatedEntry.isSynced = true
+                    updatedEntry.needsSync = false
+                    timeEntries[index] = updatedEntry
+                }
+            } else {
+                // Add new entry from server
+                var newEntry = serverEntry
+                newEntry.isSynced = true
+                newEntry.needsSync = false
+                timeEntries.append(newEntry)
+            }
+        }
+    }
+    
+    private func syncEntry(_ entry: TimeEntry) async {
+        guard let token = authManager.getCurrentToken() else {
+            return
+        }
+        
+        do {
+            let apiEntry = try await apiService.submitTimeEntry(entry, token: token)
+            
+            await MainActor.run {
+                if let index = self.timeEntries.firstIndex(where: { $0.id == entry.id }),
+                   let serverId = apiEntry.id {
+                    self.timeEntries[index].markAsSynced(serverId: serverId)
+                    self.saveData()
+                }
+            }
+        } catch {
+            print("Failed to sync entry: \(error)")
+        }
+    }
+    
+    // Public method to trigger manual sync
+    func triggerSync() {
+        guard authManager.isAuthenticated else {
+            showAlert("Please log in to sync data")
+            return
+        }
+        
+        Task {
+            await performSync()
+        }
+    }
+    
+    // Get sync status for UI
+    var lastSyncDate: Date? {
+        return userDefaults.object(forKey: lastSyncKey) as? Date
+    }
+    
+    var pendingSyncCount: Int {
+        return timeEntries.filter { $0.needsSync }.count
     }
 } 

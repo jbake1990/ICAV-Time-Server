@@ -15,9 +15,18 @@ struct TimeEntryRowView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(entry.customerName)
-                        .font(.headline)
-                        .foregroundColor(.primary)
+                    HStack {
+                        Text(entry.customerName)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        Spacer()
+                        
+                        // Sync status indicator
+                        Text(entry.syncStatus)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                     
                     Text(entry.technicianName)
                         .font(.subheadline)

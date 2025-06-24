@@ -4,7 +4,7 @@ module.exports = async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const { rows } = await sql`
-        SELECT id, username, display_name, created_at, updated_at 
+        SELECT id, username, display_name, email, role, is_active, last_login, created_at, updated_at 
         FROM users 
         ORDER BY display_name
       `;
@@ -13,6 +13,10 @@ module.exports = async function handler(req, res) {
         id: row.id,
         username: row.username,
         displayName: row.display_name,
+        email: row.email,
+        role: row.role,
+        isActive: row.is_active,
+        lastLogin: row.last_login,
         createdAt: row.created_at,
         updatedAt: row.updated_at
       }));
@@ -24,11 +28,16 @@ module.exports = async function handler(req, res) {
     }
   } else if (req.method === 'POST') {
     try {
-      const { username, displayName } = req.body;
+      const { username, displayName, role = 'tech' } = req.body;
+      
+      // Default password for new users (should be changed on first login)
+      const bcrypt = require('bcryptjs');
+      const defaultPassword = 'tech123'; // TODO: Force password change on first login
+      const passwordHash = await bcrypt.hash(defaultPassword, 10);
 
       const { rows } = await sql`
-        INSERT INTO users (username, display_name) 
-        VALUES (${username}, ${displayName})
+        INSERT INTO users (username, display_name, role, password_hash) 
+        VALUES (${username}, ${displayName}, ${role}, ${passwordHash})
         RETURNING *
       `;
 
@@ -37,6 +46,7 @@ module.exports = async function handler(req, res) {
         id: newUser.id,
         username: newUser.username,
         displayName: newUser.display_name,
+        role: newUser.role,
         createdAt: newUser.created_at,
         updatedAt: newUser.updated_at
       });

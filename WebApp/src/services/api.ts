@@ -1,6 +1,24 @@
 // Use relative URLs in production (Vercel) and allow override in development
 const API_BASE_URL = process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000');
 
+// Authentication helper functions
+const getAuthToken = (): string | null => {
+  return localStorage.getItem('authToken');
+};
+
+export const setAuthToken = (token: string): void => {
+  localStorage.setItem('authToken', token);
+};
+
+export const removeAuthToken = (): void => {
+  localStorage.removeItem('authToken');
+};
+
+const getAuthHeaders = (): Record<string, string> => {
+  const token = getAuthToken();
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+};
+
 export interface ApiTimeEntry {
   id: string;
   userId: string;
@@ -27,12 +45,69 @@ export interface ApiUser {
 }
 
 export const api = {
+  // Authentication
+  async login(username: string, password: string): Promise<{ user: any; token: string; expiresAt: string }> {
+    const url = `${API_BASE_URL}/api/auth`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ action: 'login', username, password }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Login failed' }));
+      throw new Error(errorData.error || 'Login failed');
+    }
+    return response.json();
+  },
+
+  async logout(): Promise<void> {
+    const token = getAuthToken();
+    if (token) {
+      const url = `${API_BASE_URL}/api/auth`;
+      await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'logout', sessionToken: token }),
+      });
+    }
+    removeAuthToken();
+  },
+
+  async verifySession(): Promise<{ user: any; token: string; expiresAt: string }> {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('No session token');
+    }
+    
+    const url = `${API_BASE_URL}/api/auth`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ action: 'verify', sessionToken: token }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Session verification failed');
+    }
+    return response.json();
+  },
+
   // Time Entries
   async getTimeEntries(): Promise<ApiTimeEntry[]> {
     const url = `${API_BASE_URL}/api/time-entries`;
     console.log('Fetching time entries from:', url); // Debug log
     
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
     if (!response.ok) {
       console.error('API response not ok:', response.status, response.statusText);
       throw new Error(`Failed to fetch time entries: ${response.status} ${response.statusText}`);
@@ -54,6 +129,7 @@ export const api = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(data),
     });
@@ -66,19 +142,24 @@ export const api = {
   // Users
   async getUsers(): Promise<ApiUser[]> {
     const url = `${API_BASE_URL}/api/users`;
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch users: ${response.status} ${response.statusText}`);
     }
     return response.json();
   },
 
-  async createUser(data: { username: string; displayName: string }): Promise<ApiUser> {
+  async createUser(data: { username: string; displayName: string; password?: string; role?: string }): Promise<ApiUser> {
     const url = `${API_BASE_URL}/api/users`;
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(data),
     });
@@ -92,6 +173,9 @@ export const api = {
     const url = `${API_BASE_URL}/api/users?userId=${encodeURIComponent(userId)}`;
     const response = await fetch(url, {
       method: 'DELETE',
+      headers: {
+        ...getAuthHeaders(),
+      },
     });
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));

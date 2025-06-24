@@ -19,6 +19,28 @@ export interface User {
   id: string;
   username: string;
   displayName: string;
+  email?: string;
+  role: 'tech' | 'admin';
+  isActive?: boolean;
+  lastLogin?: string;
+}
+
+export interface AuthState {
+  user: User | null;
+  token: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+}
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  token: string;
+  expiresAt: string;
 }
 
 export interface TimeEntryFilters {

@@ -17,6 +17,12 @@ struct TimeEntry: Identifiable, Codable {
     var lunchStartTime: Date?
     var lunchEndTime: Date?
     
+    // Sync tracking
+    var serverId: String? // ID from the server after successful sync
+    var isSynced: Bool = false // Whether this entry has been synced to server
+    var needsSync: Bool = false // Whether this entry has local changes that need syncing
+    var lastModified: Date = Date() // When this entry was last modified locally
+    
     var isActive: Bool {
         return clockOutTime == nil
     }
@@ -47,6 +53,28 @@ struct TimeEntry: Identifiable, Codable {
         let hours = Int(duration) / 3600
         let minutes = Int(duration) % 3600 / 60
         return String(format: "%02d:%02d", hours, minutes)
+    }
+    
+    // Helper methods for sync management
+    mutating func markForSync() {
+        needsSync = true
+        lastModified = Date()
+    }
+    
+    mutating func markAsSynced(serverId: String) {
+        self.serverId = serverId
+        isSynced = true
+        needsSync = false
+    }
+    
+    var syncStatus: String {
+        if isSynced {
+            return "✅ Synced"
+        } else if needsSync {
+            return "📤 Pending sync"
+        } else {
+            return "📱 Local only"
+        }
     }
 }
 

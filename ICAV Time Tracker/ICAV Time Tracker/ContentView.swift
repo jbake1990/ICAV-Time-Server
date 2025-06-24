@@ -55,10 +55,38 @@ struct ContentView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Export") {
-                        showingExportSheet = true
+                    HStack {
+                        // Sync button with status indicator
+                        Button(action: {
+                            viewModel.triggerSync()
+                        }) {
+                            HStack {
+                                if viewModel.isSyncing {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: authManager.isOnline ? "cloud.circle" : "cloud.slash")
+                                        .foregroundColor(authManager.isOnline ? .green : .orange)
+                                }
+                                
+                                if viewModel.pendingSyncCount > 0 {
+                                    Text("\(viewModel.pendingSyncCount)")
+                                        .font(.caption)
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.red)
+                                        .clipShape(Capsule())
+                                }
+                            }
+                        }
+                        .disabled(viewModel.isSyncing || !authManager.isAuthenticated)
+                        
+                        Button("Export") {
+                            showingExportSheet = true
+                        }
+                        .disabled(viewModel.userTimeEntries.isEmpty)
                     }
-                    .disabled(viewModel.userTimeEntries.isEmpty)
                 }
             }
             .alert("Alert", isPresented: $viewModel.showingAlert) {
@@ -109,6 +137,29 @@ struct ContentView: View {
                     .foregroundColor(statusColor)
                 
                 Spacer()
+                
+                // Sync status indicator
+                VStack(alignment: .trailing, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Image(systemName: authManager.isOnline ? "wifi" : "wifi.slash")
+                            .foregroundColor(authManager.isOnline ? .green : .orange)
+                            .font(.caption)
+                        
+                        Text(authManager.isOnline ? "Online" : "Offline")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    if viewModel.pendingSyncCount > 0 {
+                        Text("\(viewModel.pendingSyncCount) pending")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                    } else if viewModel.lastSyncDate != nil {
+                        Text("Synced")
+                            .font(.caption2)
+                            .foregroundColor(.green)
+                    }
+                }
             }
             
             if case .clockedIn(let entry) = viewModel.currentStatus {
