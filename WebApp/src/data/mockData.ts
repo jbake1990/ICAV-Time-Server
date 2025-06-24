@@ -2,11 +2,11 @@ import { TimeEntry, User, DashboardStats } from '../types';
 
 // Mock Users
 export const mockUsers: User[] = [
-  { id: '1', username: 'john.doe', displayName: 'John Doe' },
-  { id: '2', username: 'jane.smith', displayName: 'Jane Smith' },
-  { id: '3', username: 'mike.johnson', displayName: 'Mike Johnson' },
-  { id: '4', username: 'sarah.wilson', displayName: 'Sarah Wilson' },
-  { id: '5', username: 'david.brown', displayName: 'David Brown' },
+  { id: '1', username: 'john.doe', displayName: 'John Doe', role: 'tech' },
+  { id: '2', username: 'jane.smith', displayName: 'Jane Smith', role: 'tech' },
+  { id: '3', username: 'mike.johnson', displayName: 'Mike Johnson', role: 'tech' },
+  { id: '4', username: 'sarah.wilson', displayName: 'Sarah Wilson', role: 'tech' },
+  { id: '5', username: 'david.brown', displayName: 'David Brown', role: 'tech' },
 ];
 
 // Mock Time Entries
