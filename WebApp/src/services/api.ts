@@ -87,4 +87,16 @@ export const api = {
     }
     return response.json();
   },
+
+  async deleteUser(userId: string): Promise<{ message: string; deletedUser: { id: string; username: string; displayName: string } }> {
+    const url = `${API_BASE_URL}/api/users?userId=${encodeURIComponent(userId)}`;
+    const response = await fetch(url, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(errorData.error || `Failed to delete user: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  },
 }; 

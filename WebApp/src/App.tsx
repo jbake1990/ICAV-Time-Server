@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Clock, Users, Settings, Download, X, UserPlus } from 'lucide-react';
+import { Clock, Users, Settings, Download, X, UserPlus, Trash2 } from 'lucide-react';
 import { TimeEntry, TimeEntryFilters, DashboardStats, User } from './types';
 import { api } from './services/api';
 import DashboardStatsComponent from './components/DashboardStats';
@@ -18,6 +18,8 @@ function App() {
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [newUser, setNewUser] = useState({ username: '', displayName: '' });
   const [creatingUser, setCreatingUser] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [deletingUser, setDeletingUser] = useState(false);
 
   // Load time entries from API
   useEffect(() => {
@@ -223,6 +225,26 @@ function App() {
     }
   };
 
+  // Delete user
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    try {
+      setDeletingUser(true);
+      await api.deleteUser(userToDelete.id);
+      
+      setUsers(prev => prev.filter(user => user.id !== userToDelete.id));
+      setUserToDelete(null);
+      alert('User deleted successfully!');
+    } catch (err) {
+      console.error('Failed to delete user:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete user. Please try again.';
+      alert(errorMessage);
+    } finally {
+      setDeletingUser(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -370,7 +392,16 @@ function App() {
                             <div className="font-medium text-gray-900">{user.displayName}</div>
                             <div className="text-sm text-gray-500">@{user.username}</div>
                           </div>
-                          <div className="text-sm text-gray-400">ID: {user.id.slice(0, 8)}...</div>
+                          <div className="flex items-center space-x-3">
+                            <div className="text-sm text-gray-400">ID: {user.id.slice(0, 8)}...</div>
+                            <button
+                              onClick={() => setUserToDelete(user)}
+                              className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Delete user"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -396,6 +427,67 @@ function App() {
                     <span>Export Current View</span>
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete User Confirmation Modal */}
+      {userToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Delete User</h2>
+                <button
+                  onClick={() => setUserToDelete(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                  disabled={deletingUser}
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="mb-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                    <Trash2 className="w-5 h-5 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">Are you sure?</h3>
+                    <p className="text-sm text-gray-500">This action cannot be undone.</p>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                  <div className="font-medium text-gray-900">{userToDelete.displayName}</div>
+                  <div className="text-sm text-gray-500">@{userToDelete.username}</div>
+                </div>
+
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Note:</strong> Users with existing time entries cannot be deleted. 
+                    This protects your data integrity.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setUserToDelete(null)}
+                  disabled={deletingUser}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteUser}
+                  disabled={deletingUser}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deletingUser ? 'Deleting...' : 'Delete User'}
+                </button>
               </div>
             </div>
           </div>
