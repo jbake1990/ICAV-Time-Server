@@ -5,36 +5,18 @@ export default async function handler(req, res) {
     try {
       const { rows } = await sql`
         SELECT 
-          te.id,
-          te.user_id,
-          te.technician_name,
-          te.customer_name,
-          te.clock_in_time,
-          te.clock_out_time,
-          te.lunch_start_time,
-          te.lunch_end_time,
-          te.created_at,
-          te.updated_at,
-          CASE 
-            WHEN te.clock_out_time IS NULL THEN true 
-            ELSE false 
-          END as is_active,
-          CASE 
-            WHEN te.lunch_start_time IS NOT NULL AND te.lunch_end_time IS NULL THEN true 
-            ELSE false 
-          END as is_on_lunch,
-          CASE 
-            WHEN te.clock_out_time IS NOT NULL 
-            THEN EXTRACT(EPOCH FROM (te.clock_out_time - te.clock_in_time)) * 1000
-            ELSE NULL 
-          END as duration,
-          CASE 
-            WHEN te.lunch_start_time IS NOT NULL AND te.lunch_end_time IS NOT NULL 
-            THEN EXTRACT(EPOCH FROM (te.lunch_end_time - te.lunch_start_time)) * 1000
-            ELSE NULL 
-          END as lunch_duration
-        FROM time_entries te
-        ORDER BY te.clock_in_time DESC
+          id,
+          user_id,
+          technician_name,
+          customer_name,
+          clock_in_time,
+          clock_out_time,
+          lunch_start_time,
+          lunch_end_time,
+          created_at,
+          updated_at
+        FROM time_entries 
+        ORDER BY clock_in_time DESC
       `;
 
       // Format the data to match the frontend expectations
@@ -47,12 +29,20 @@ export default async function handler(req, res) {
         clockOutTime: row.clock_out_time ? new Date(row.clock_out_time) : undefined,
         lunchStartTime: row.lunch_start_time ? new Date(row.lunch_start_time) : undefined,
         lunchEndTime: row.lunch_end_time ? new Date(row.lunch_end_time) : undefined,
-        isActive: row.is_active,
-        isOnLunch: row.is_on_lunch,
-        duration: row.duration,
-        formattedDuration: row.duration ? formatDuration(row.duration) : undefined,
-        lunchDuration: row.lunch_duration,
-        formattedLunchDuration: row.lunch_duration ? formatDuration(row.lunch_duration) : undefined
+        isActive: !row.clock_out_time,
+        isOnLunch: row.lunch_start_time && !row.lunch_end_time,
+        duration: row.clock_out_time ? 
+          new Date(row.clock_out_time).getTime() - new Date(row.clock_in_time).getTime() : 
+          undefined,
+        formattedDuration: row.clock_out_time ? 
+          formatDuration(new Date(row.clock_out_time).getTime() - new Date(row.clock_in_time).getTime()) : 
+          undefined,
+        lunchDuration: row.lunch_start_time && row.lunch_end_time ? 
+          new Date(row.lunch_end_time).getTime() - new Date(row.lunch_start_time).getTime() : 
+          undefined,
+        formattedLunchDuration: row.lunch_start_time && row.lunch_end_time ? 
+          formatDuration(new Date(row.lunch_end_time).getTime() - new Date(row.lunch_start_time).getTime()) : 
+          undefined
       }));
 
       res.status(200).json(formattedRows);
@@ -65,8 +55,24 @@ export default async function handler(req, res) {
       const { userId, technicianName, customerName, clockInTime, clockOutTime, lunchStartTime, lunchEndTime } = req.body;
 
       const { rows } = await sql`
-        INSERT INTO time_entries (user_id, technician_name, customer_name, clock_in_time, clock_out_time, lunch_start_time, lunch_end_time)
-        VALUES (${userId}, ${technicianName}, ${customerName}, ${clockInTime}, ${clockOutTime}, ${lunchStartTime}, ${lunchEndTime})
+        INSERT INTO time_entries (
+          user_id, 
+          technician_name, 
+          customer_name, 
+          clock_in_time, 
+          clock_out_time, 
+          lunch_start_time, 
+          lunch_end_time
+        ) 
+        VALUES (
+          ${userId}, 
+          ${technicianName}, 
+          ${customerName}, 
+          ${clockInTime}, 
+          ${clockOutTime}, 
+          ${lunchStartTime}, 
+          ${lunchEndTime}
+        )
         RETURNING *
       `;
 

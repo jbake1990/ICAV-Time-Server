@@ -4,8 +4,8 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const { rows } = await sql`
-        SELECT id, username, display_name, created_at, updated_at
-        FROM users
+        SELECT id, username, display_name, created_at, updated_at 
+        FROM users 
         ORDER BY display_name
       `;
 
@@ -27,17 +27,18 @@ export default async function handler(req, res) {
       const { username, displayName } = req.body;
 
       const { rows } = await sql`
-        INSERT INTO users (username, display_name)
+        INSERT INTO users (username, display_name) 
         VALUES (${username}, ${displayName})
         RETURNING *
       `;
 
+      const newUser = rows[0];
       res.status(201).json({
-        id: rows[0].id,
-        username: rows[0].username,
-        displayName: rows[0].display_name,
-        createdAt: rows[0].created_at,
-        updatedAt: rows[0].updated_at
+        id: newUser.id,
+        username: newUser.username,
+        displayName: newUser.display_name,
+        createdAt: newUser.created_at,
+        updatedAt: newUser.updated_at
       });
     } catch (error) {
       console.error('Error creating user:', error);
