@@ -1,6 +1,6 @@
-import { sql } from '@vercel/postgres';
+const { sql } = require('@vercel/postgres');
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   try {
     console.log('Testing database connection...');
     
@@ -34,4 +34,4 @@ export default async function handler(req, res) {
       stack: error.stack
     });
   }
-} 
+}; 
