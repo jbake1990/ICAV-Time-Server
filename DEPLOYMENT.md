@@ -1,12 +1,14 @@
-# ICAV Time Tracker - Vercel Deployment Guide
+# ICAV Time Tracker - Vercel + Neon Deployment Guide
 
-This guide will walk you through deploying the ICAV Time Tracker web app and database to Vercel, and connecting your iOS app.
+This guide will walk you through deploying the ICAV Time Tracker web app to Vercel with a Neon PostgreSQL database, and connecting your iOS app.
 
 ## Prerequisites
 
 1. **GitHub Account** - Your code needs to be on GitHub
 2. **Vercel Account** - Sign up at [vercel.com](https://vercel.com)
 3. **Vercel CLI** (optional) - `npm i -g vercel`
+
+**Note:** No separate Neon account needed - Vercel will handle the Neon setup automatically!
 
 ## Step 1: Push Code to GitHub
 
@@ -42,32 +44,36 @@ cd WebApp
 vercel
 ```
 
-## Step 3: Set Up Vercel PostgreSQL Database
+## Step 3: Set Up Neon PostgreSQL Database via Vercel
 
-1. In your Vercel dashboard, go to your project
-2. Click on "Storage" tab
-3. Click "Create Database"
-4. Choose "PostgreSQL"
-5. Select a region close to your users
-6. Click "Create"
+1. In your Vercel project dashboard, go to the "Storage" tab
+2. Click "Create Database"
+3. Select "Neon" from the database options
+4. Click "Continue" to connect with Neon
+5. If you don't have a Neon account, you'll be prompted to create one
+6. Choose your database settings:
+   - Database name (e.g., "icav-time-tracker")
+   - Region (choose one close to your users)
+7. Click "Create & Deploy"
+8. Vercel will automatically create the database and set up environment variables
 
 ## Step 4: Initialize Database Schema
 
-1. In your Vercel dashboard, go to your database
-2. Click "Connect" and copy the connection string
-3. Go to "SQL Editor" in your database dashboard
+1. In your Vercel dashboard, click on your newly created Neon database
+2. Click "Open in Neon Console" 
+3. In the Neon console, go to "SQL Editor"
 4. Copy and paste the contents of `Database/schema.sql`
 5. Click "Run" to execute the schema
+6. Verify tables are created in the "Tables" tab
 
-## Step 5: Configure Environment Variables
+## Step 5: Environment Variables (Auto-configured)
 
-1. In your Vercel project dashboard, go to "Settings" → "Environment Variables"
-2. Add the following variables:
-   - `POSTGRES_URL` - Your database connection string (auto-filled by Vercel)
-   - `POSTGRES_HOST` - Your database host (auto-filled by Vercel)
-   - `POSTGRES_DATABASE` - Your database name (auto-filled by Vercel)
-   - `POSTGRES_USERNAME` - Your database username (auto-filled by Vercel)
-   - `POSTGRES_PASSWORD` - Your database password (auto-filled by Vercel)
+When you create the Neon database through Vercel, the following environment variables are automatically configured:
+- `POSTGRES_URL` - Your database connection string
+- `POSTGRES_PRISMA_URL` - Prisma-optimized connection string  
+- `POSTGRES_URL_NON_POOLING` - Direct connection string
+
+**No manual configuration needed!** ✅
 
 ## Step 6: Redeploy with Database
 
@@ -141,7 +147,8 @@ func fetchTimeEntries() async throws -> [TimeEntry] {
 ### Getting Help
 
 - Check Vercel documentation: [vercel.com/docs](https://vercel.com/docs)
-- Check Vercel PostgreSQL docs: [vercel.com/docs/storage/vercel-postgres](https://vercel.com/docs/storage/vercel-postgres)
+- Check Neon documentation: [neon.tech/docs](https://neon.tech/docs)
+- Check @vercel/postgres docs: [vercel.com/docs/storage/vercel-postgres](https://vercel.com/docs/storage/vercel-postgres)
 
 ## API Endpoints Reference
 
