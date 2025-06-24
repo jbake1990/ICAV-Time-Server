@@ -1,8 +1,12 @@
 import { sql } from '@vercel/postgres';
 
 export default async function handler(req, res) {
+  console.log('Time entries API called with method:', req.method);
+  
   if (req.method === 'GET') {
     try {
+      console.log('Attempting to fetch time entries from database...');
+      
       const { rows } = await sql`
         SELECT 
           id,
@@ -18,6 +22,8 @@ export default async function handler(req, res) {
         FROM time_entries 
         ORDER BY clock_in_time DESC
       `;
+
+      console.log('Successfully fetched', rows.length, 'time entries');
 
       // Format the data to match the frontend expectations
       const formattedRows = rows.map(row => ({
@@ -45,13 +51,24 @@ export default async function handler(req, res) {
           undefined
       }));
 
+      console.log('Returning formatted data for', formattedRows.length, 'entries');
       res.status(200).json(formattedRows);
     } catch (error) {
-      console.error('Error fetching time entries:', error);
-      res.status(500).json({ error: 'Failed to fetch time entries' });
+      console.error('Error fetching time entries:');
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      console.error('Error details:', error);
+      
+      res.status(500).json({ 
+        error: 'Failed to fetch time entries',
+        details: error.message,
+        timestamp: new Date().toISOString()
+      });
     }
   } else if (req.method === 'POST') {
     try {
+      console.log('Creating new time entry with data:', req.body);
+      
       const { userId, technicianName, customerName, clockInTime, clockOutTime, lunchStartTime, lunchEndTime } = req.body;
 
       const { rows } = await sql`
@@ -76,10 +93,18 @@ export default async function handler(req, res) {
         RETURNING *
       `;
 
+      console.log('Successfully created time entry:', rows[0]);
       res.status(201).json(rows[0]);
     } catch (error) {
-      console.error('Error creating time entry:', error);
-      res.status(500).json({ error: 'Failed to create time entry' });
+      console.error('Error creating time entry:');
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
+      res.status(500).json({ 
+        error: 'Failed to create time entry',
+        details: error.message,
+        timestamp: new Date().toISOString()
+      });
     }
   } else {
     res.setHeader('Allow', ['GET', 'POST']);
