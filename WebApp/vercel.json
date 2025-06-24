@@ -1,5 +1,7 @@
 {
   "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "build",
   "builds": [
     {
       "src": "package.json",
@@ -35,5 +37,8 @@
     "api/*.js": {
       "runtime": "nodejs18.x"
     }
+  },
+  "env": {
+    "NODE_VERSION": "18"
   }
 } 

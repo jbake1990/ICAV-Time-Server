@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Web interface for ICAV Time Tracker - Office Worker Dashboard",
   "private": true,
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
   "dependencies": {
     "@testing-library/jest-dom": "^5.16.4",
     "@testing-library/react": "^13.3.0",
