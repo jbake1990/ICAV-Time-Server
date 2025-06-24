@@ -1,4 +1,5 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || '';
+// Use relative URLs in production (Vercel) and allow override in development
+const API_BASE_URL = process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000');
 
 export interface ApiTimeEntry {
   id: string;
@@ -28,9 +29,13 @@ export interface ApiUser {
 export const api = {
   // Time Entries
   async getTimeEntries(): Promise<ApiTimeEntry[]> {
-    const response = await fetch(`${API_BASE_URL}/api/time-entries`);
+    const url = `${API_BASE_URL}/api/time-entries`;
+    console.log('Fetching time entries from:', url); // Debug log
+    
+    const response = await fetch(url);
     if (!response.ok) {
-      throw new Error('Failed to fetch time entries');
+      console.error('API response not ok:', response.status, response.statusText);
+      throw new Error(`Failed to fetch time entries: ${response.status} ${response.statusText}`);
     }
     return response.json();
   },
@@ -44,7 +49,8 @@ export const api = {
     lunchStartTime?: string;
     lunchEndTime?: string;
   }): Promise<ApiTimeEntry> {
-    const response = await fetch(`${API_BASE_URL}/api/time-entries`, {
+    const url = `${API_BASE_URL}/api/time-entries`;
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -52,22 +58,24 @@ export const api = {
       body: JSON.stringify(data),
     });
     if (!response.ok) {
-      throw new Error('Failed to create time entry');
+      throw new Error(`Failed to create time entry: ${response.status} ${response.statusText}`);
     }
     return response.json();
   },
 
   // Users
   async getUsers(): Promise<ApiUser[]> {
-    const response = await fetch(`${API_BASE_URL}/api/users`);
+    const url = `${API_BASE_URL}/api/users`;
+    const response = await fetch(url);
     if (!response.ok) {
-      throw new Error('Failed to fetch users');
+      throw new Error(`Failed to fetch users: ${response.status} ${response.statusText}`);
     }
     return response.json();
   },
 
   async createUser(data: { username: string; displayName: string }): Promise<ApiUser> {
-    const response = await fetch(`${API_BASE_URL}/api/users`, {
+    const url = `${API_BASE_URL}/api/users`;
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -75,7 +83,7 @@ export const api = {
       body: JSON.stringify(data),
     });
     if (!response.ok) {
-      throw new Error('Failed to create user');
+      throw new Error(`Failed to create user: ${response.status} ${response.statusText}`);
     }
     return response.json();
   },
