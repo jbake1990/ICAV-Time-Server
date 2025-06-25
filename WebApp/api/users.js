@@ -28,12 +28,19 @@ module.exports = async function handler(req, res) {
     }
   } else if (req.method === 'POST') {
     try {
-      const { username, displayName, role = 'tech' } = req.body;
+      const { username, displayName, role = 'tech', password } = req.body;
       
-      // Default password for new users (should be changed on first login)
+      if (!password) {
+        return res.status(400).json({ error: 'Password is required' });
+      }
+      
+      if (password.length < 6) {
+        return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+      }
+      
+      // Hash the provided password
       const bcrypt = require('bcryptjs');
-      const defaultPassword = 'tech123'; // TODO: Force password change on first login
-      const passwordHash = await bcrypt.hash(defaultPassword, 10);
+      const passwordHash = await bcrypt.hash(password, 10);
 
       const { rows } = await sql`
         INSERT INTO users (username, display_name, role, password_hash) 
