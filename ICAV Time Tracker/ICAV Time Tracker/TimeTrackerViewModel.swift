@@ -110,7 +110,12 @@ class TimeTrackerViewModel: ObservableObject {
                 currentStatus = .onLunch(timeEntries[index])
                 saveData()
                 
-                // Don't sync lunch start - wait for complete entry
+                // Sync immediately to show lunch start in web portal
+                if authManager.isOnline {
+                    Task {
+                        await syncEntry(timeEntries[index])
+                    }
+                }
             }
             
         case .clockedOut:
@@ -165,8 +170,8 @@ class TimeTrackerViewModel: ObservableObject {
             
             saveData()
             
-            // Sync only if the entry is now complete (clocked out)
-            if timeEntries[index].clockOutTime != nil && authManager.isOnline {
+            // Sync immediately to show lunch end in web portal
+            if authManager.isOnline {
                 Task {
                     await syncEntry(timeEntries[index])
                 }
