@@ -70,6 +70,8 @@ class TimeTrackerViewModel: ObservableObject {
         if authManager.isOnline {
             Task {
                 await syncEntry(newEntry)
+                // Small delay to prevent race conditions
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
             }
         }
     }
@@ -90,6 +92,8 @@ class TimeTrackerViewModel: ObservableObject {
             if authManager.isOnline {
                 Task {
                     await syncEntry(timeEntries[index])
+                    // Small delay to prevent race conditions
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
                 }
             }
         }
@@ -114,6 +118,8 @@ class TimeTrackerViewModel: ObservableObject {
                 if authManager.isOnline {
                     Task {
                         await syncEntry(timeEntries[index])
+                        // Small delay to prevent race conditions
+                        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
                     }
                 }
             }
@@ -174,6 +180,8 @@ class TimeTrackerViewModel: ObservableObject {
             if authManager.isOnline {
                 Task {
                     await syncEntry(timeEntries[index])
+                    // Small delay to prevent race conditions
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
                 }
             }
         }
@@ -392,17 +400,21 @@ class TimeTrackerViewModel: ObservableObject {
         }
         
         do {
+            print("🔄 Syncing entry: \(entry.id), serverId: \(entry.serverId ?? "nil")")
             let apiEntry = try await apiService.submitTimeEntry(entry, token: token)
             
             await MainActor.run {
                 if let index = self.timeEntries.firstIndex(where: { $0.id == entry.id }),
                    let serverId = apiEntry.id {
+                    print("✅ Entry synced successfully: \(entry.id) -> serverId: \(serverId)")
                     self.timeEntries[index].markAsSynced(serverId: serverId)
                     self.saveData()
+                } else {
+                    print("❌ Failed to find entry or get serverId for: \(entry.id)")
                 }
             }
         } catch {
-            print("Failed to sync entry: \(error)")
+            print("❌ Failed to sync entry: \(error)")
         }
     }
     
