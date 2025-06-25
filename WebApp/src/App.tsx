@@ -23,6 +23,8 @@ function AppContent() {
   const [creatingUser, setCreatingUser] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState(false);
+  const [clearingDatabase, setClearingDatabase] = useState(false);
+  const [showClearDatabaseConfirm, setShowClearDatabaseConfirm] = useState(false);
 
   // Load time entries from API
   useEffect(() => {
@@ -240,20 +242,38 @@ function AppContent() {
   // Delete user
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
-
+    
     try {
       setDeletingUser(true);
       await api.deleteUser(userToDelete.id);
       
-      setUsers(prev => prev.filter(user => user.id !== userToDelete.id));
+      // Remove user from local state
+      setUsers(users.filter(u => u.id !== userToDelete.id));
       setUserToDelete(null);
-      alert('User deleted successfully!');
-    } catch (err) {
-      console.error('Failed to delete user:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to delete user. Please try again.';
-      alert(errorMessage);
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+      setError('Failed to delete user. They may have existing time entries.');
     } finally {
       setDeletingUser(false);
+    }
+  };
+
+  const handleClearDatabase = async () => {
+    try {
+      setClearingDatabase(true);
+      await api.clearDatabase();
+      
+      // Clear local time entries
+      setTimeEntries([]);
+      setShowClearDatabaseConfirm(false);
+      
+      // Show success message
+      alert('Database cleared successfully! All time entries have been removed.');
+    } catch (error) {
+      console.error('Failed to clear database:', error);
+      setError('Failed to clear database. Please try again.');
+    } finally {
+      setClearingDatabase(false);
     }
   };
 
@@ -511,6 +531,31 @@ function AppContent() {
                   </button>
                 </div>
               </div>
+
+              {/* Database Management Section */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Database Management</h3>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="mb-4">
+                    <h4 className="text-md font-medium text-gray-900 mb-2">Clear Database</h4>
+                    <p className="text-gray-600 mb-4">
+                      Remove all time entries from the database. This action cannot be undone and will permanently delete all time tracking data.
+                    </p>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                      <p className="text-sm text-red-800">
+                        <strong>Warning:</strong> This will permanently delete all time entries. Make sure you have exported any important data before proceeding.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowClearDatabaseConfirm(true)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Clear All Time Entries</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -636,17 +681,17 @@ function AppContent() {
                     type="password"
                     value={newUser.password}
                     onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
-                    placeholder="Enter initial password"
+                    placeholder="Enter password"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    User can change this password after first login
+                    Leave blank to use default password (username123)
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Role *
+                    Role
                   </label>
                   <select
                     value={newUser.role}
@@ -660,25 +705,87 @@ function AppContent() {
                     Technicians can only view data, Admins can manage users and export data
                   </p>
                 </div>
+              </div>
 
-                <div className="flex space-x-3 pt-4">
-                  <button
-                    onClick={() => {
-                      setShowCreateUser(false);
-                      setNewUser({ username: '', displayName: '', password: '', role: 'tech' });
-                    }}
-                    className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleCreateUser}
-                    disabled={creatingUser || !newUser.username.trim() || !newUser.displayName.trim() || !newUser.password.trim()}
-                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {creatingUser ? 'Creating...' : 'Create User'}
-                  </button>
+              <div className="flex space-x-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowCreateUser(false);
+                    setNewUser({ username: '', displayName: '', password: '', role: 'tech' });
+                  }}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateUser}
+                  disabled={creatingUser || !newUser.username || !newUser.displayName}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {creatingUser ? 'Creating...' : 'Create User'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Database Confirmation Modal */}
+      {showClearDatabaseConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Clear Database</h2>
+                <button
+                  onClick={() => setShowClearDatabaseConfirm(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                  disabled={clearingDatabase}
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="mb-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                    <Trash2 className="w-5 h-5 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">Are you absolutely sure?</h3>
+                    <p className="text-sm text-gray-500">This action cannot be undone.</p>
+                  </div>
                 </div>
+
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-red-800">
+                    <strong>Warning:</strong> This will permanently delete ALL time entries from the database. 
+                    This includes all clock in/out records, lunch breaks, and time tracking data.
+                  </p>
+                </div>
+
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Recommendation:</strong> Export your data first to preserve any important records.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowClearDatabaseConfirm(false)}
+                  disabled={clearingDatabase}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleClearDatabase}
+                  disabled={clearingDatabase}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {clearingDatabase ? 'Clearing...' : 'Clear All Data'}
+                </button>
               </div>
             </div>
           </div>

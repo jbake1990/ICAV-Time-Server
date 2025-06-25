@@ -194,4 +194,20 @@ export const api = {
     }
     return response.json();
   },
+
+  // Admin functions
+  async clearDatabase(): Promise<{ success: boolean; message: string; deletedCount: number }> {
+    const url = `${API_BASE_URL}/api/admin?action=reset-db`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(errorData.error || `Failed to clear database: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  },
 }; 
