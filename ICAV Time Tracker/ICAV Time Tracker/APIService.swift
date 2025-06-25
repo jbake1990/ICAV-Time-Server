@@ -240,7 +240,7 @@ class APIService: ObservableObject {
         }
         
         let apiEntry = APITimeEntry(
-            id: nil, // Server will generate
+            id: entry.serverId, // Use existing server ID if available, nil for new entries
             userId: entry.userId,
             technicianName: entry.technicianName,
             customerName: entry.customerName,

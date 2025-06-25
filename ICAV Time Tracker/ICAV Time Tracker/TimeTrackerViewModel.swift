@@ -54,10 +54,7 @@ class TimeTrackerViewModel: ObservableObject {
             clockInTime: Date()
         )
         
-        // Mark for sync if we have connectivity
-        if authManager.isOnline {
-            newEntry.markForSync()
-        }
+        // Don't mark incomplete entries for sync - wait until they are complete
         
         timeEntries.append(newEntry)
         currentStatus = .clockedIn(newEntry)
@@ -66,12 +63,7 @@ class TimeTrackerViewModel: ObservableObject {
         // Clear customer name for next entry
         customerName = ""
         
-        // Try to sync immediately if online
-        if authManager.isOnline {
-            Task {
-                await syncEntry(newEntry)
-            }
-        }
+        // Don't sync clock-in only entries - wait until they are complete
     }
     
     func clockOut() {
@@ -86,7 +78,7 @@ class TimeTrackerViewModel: ObservableObject {
             currentStatus = .clockedOut
             saveData()
             
-            // Try to sync the updated entry if online
+            // Now sync the complete entry if online
             if authManager.isOnline {
                 Task {
                     await syncEntry(timeEntries[index])
@@ -110,12 +102,7 @@ class TimeTrackerViewModel: ObservableObject {
                 currentStatus = .onLunch(timeEntries[index])
                 saveData()
                 
-                // Try to sync the updated entry if online
-                if authManager.isOnline {
-                    Task {
-                        await syncEntry(timeEntries[index])
-                    }
-                }
+                // Don't sync lunch start - wait for complete entry
             }
             
         case .clockedOut:
@@ -128,20 +115,13 @@ class TimeTrackerViewModel: ObservableObject {
                 lunchStartTime: Date()
             )
             
-            if authManager.isOnline {
-                lunchEntry.markForSync()
-            }
+            // Don't mark lunch entries for sync until they are complete
             
             timeEntries.append(lunchEntry)
             currentStatus = .onLunch(lunchEntry)
             saveData()
             
-            // Try to sync immediately if online
-            if authManager.isOnline {
-                Task {
-                    await syncEntry(lunchEntry)
-                }
-            }
+            // Don't sync lunch-only entries immediately - wait for completion
             
         case .onLunch:
             showAlert("Already on lunch break")
@@ -169,8 +149,8 @@ class TimeTrackerViewModel: ObservableObject {
             
             saveData()
             
-            // Try to sync the updated entry if online
-            if authManager.isOnline {
+            // Sync only if the entry is now complete (clocked out)
+            if timeEntries[index].clockOutTime != nil && authManager.isOnline {
                 Task {
                     await syncEntry(timeEntries[index])
                 }
@@ -300,7 +280,13 @@ class TimeTrackerViewModel: ObservableObject {
     }
     
     private func syncPendingEntries(token: String) async {
-        let pendingEntries = timeEntries.filter { $0.needsSync }
+        // Only sync complete entries (those with clock-out time or lunch-only entries that are complete)
+        let pendingEntries = timeEntries.filter { entry in
+            entry.needsSync && (
+                entry.clockOutTime != nil || // Complete work entries
+                (entry.customerName == "Lunch Break" && entry.lunchEndTime != nil) // Complete lunch entries
+            )
+        }
         
         if pendingEntries.isEmpty {
             return
