@@ -48,6 +48,9 @@ export const api = {
   // Authentication
   async login(username: string, password: string): Promise<{ user: any; token: string; expiresAt: string }> {
     const url = `${API_BASE_URL}/api/auth`;
+    console.log('Making login request to:', url);
+    console.log('Login credentials:', { username, hasPassword: !!password });
+    
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -55,11 +58,19 @@ export const api = {
       },
       body: JSON.stringify({ action: 'login', username, password }),
     });
+    
+    console.log('Login response status:', response.status);
+    console.log('Login response headers:', response.headers);
+    
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Login failed' }));
+      console.error('Login failed with error:', errorData);
       throw new Error(errorData.error || 'Login failed');
     }
-    return response.json();
+    
+    const responseData = await response.json();
+    console.log('Login successful, response data:', responseData);
+    return responseData;
   },
 
   async logout(): Promise<void> {

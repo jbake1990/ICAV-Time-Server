@@ -103,7 +103,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (username: string, password: string) => {
     dispatch({ type: 'AUTH_START' });
     try {
+      console.log('Starting login for username:', username);
       const response = await api.login(username, password);
+      console.log('Login API response:', response);
       
       // Store token in localStorage
       setAuthToken(response.token);
@@ -112,7 +114,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         type: 'AUTH_SUCCESS',
         payload: { user: response.user, token: response.token },
       });
+      console.log('Login successful, user authenticated');
     } catch (error) {
+      console.error('Login error in AuthContext:', error);
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
       dispatch({ type: 'AUTH_FAILURE', payload: errorMessage });
     }
