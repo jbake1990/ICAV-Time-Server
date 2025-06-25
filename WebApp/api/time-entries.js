@@ -92,7 +92,20 @@ module.exports = async function handler(req, res) {
 
         if (updateRows.length > 0) {
           console.log('Successfully updated time entry:', updateRows[0]);
-          return res.status(200).json(updateRows[0]);
+          
+          // Format the response to match iOS expectations
+          const formattedResponse = {
+            id: updateRows[0].id,
+            userId: updateRows[0].user_id,
+            technicianName: updateRows[0].technician_name,
+            customerName: updateRows[0].customer_name,
+            clockInTime: updateRows[0].clock_in_time,
+            clockOutTime: updateRows[0].clock_out_time,
+            lunchStartTime: updateRows[0].lunch_start_time,
+            lunchEndTime: updateRows[0].lunch_end_time
+          };
+          
+          return res.status(200).json(formattedResponse);
         } else {
           console.log('Entry with ID not found, creating new entry');
         }
@@ -122,7 +135,20 @@ module.exports = async function handler(req, res) {
       `;
 
       console.log('Successfully created time entry:', rows[0]);
-      res.status(201).json(rows[0]);
+      
+      // Format the response to match iOS expectations
+      const formattedResponse = {
+        id: rows[0].id,
+        userId: rows[0].user_id,
+        technicianName: rows[0].technician_name,
+        customerName: rows[0].customer_name,
+        clockInTime: rows[0].clock_in_time,
+        clockOutTime: rows[0].clock_out_time,
+        lunchStartTime: rows[0].lunch_start_time,
+        lunchEndTime: rows[0].lunch_end_time
+      };
+      
+      res.status(201).json(formattedResponse);
     } catch (error) {
       console.error('Error creating/updating time entry:');
       console.error('Error message:', error.message);
