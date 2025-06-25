@@ -74,8 +74,27 @@ module.exports = async function handler(req, res) {
       });
     }
 
+  } else if (req.method === 'PUT') {
+    try {
+      // Reset database - delete all time entries
+      const { rowCount } = await sql`DELETE FROM time_entries`;
+      
+      res.status(200).json({
+        success: true,
+        message: `Database reset complete - deleted ${rowCount} time entries`,
+        deletedCount: rowCount
+      });
+
+    } catch (error) {
+      console.error('Error resetting database:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+
   } else {
-    res.setHeader('Allow', ['GET', 'DELETE']);
+    res.setHeader('Allow', ['GET', 'DELETE', 'PUT']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }; 
