@@ -293,24 +293,16 @@ class TimeTrackerViewModel: ObservableObject {
             self.syncMessage = "Syncing data..."
         }
         
-        do {
-            // First, sync pending local entries to server
-            await syncPendingEntries(token: token)
-            
-            // Then, fetch any new entries from server
-            await fetchServerEntries(token: token)
-            
-            await MainActor.run {
-                self.isSyncing = false
-                self.syncMessage = "Sync completed"
-                self.userDefaults.set(Date(), forKey: self.lastSyncKey)
-            }
-            
-        } catch {
-            await MainActor.run {
-                self.isSyncing = false
-                self.syncMessage = "Sync failed: \(error.localizedDescription)"
-            }
+        // First, sync pending local entries to server
+        await syncPendingEntries(token: token)
+        
+        // Then, fetch any new entries from server
+        await fetchServerEntries(token: token)
+        
+        await MainActor.run {
+            self.isSyncing = false
+            self.syncMessage = "Sync completed"
+            self.userDefaults.set(Date(), forKey: self.lastSyncKey)
         }
     }
     

@@ -8,7 +8,7 @@
 import Foundation
 
 struct TimeEntry: Identifiable, Codable {
-    let id = UUID()
+    var id: UUID
     let userId: String
     let technicianName: String
     let customerName: String
@@ -22,6 +22,18 @@ struct TimeEntry: Identifiable, Codable {
     var isSynced: Bool = false // Whether this entry has been synced to server
     var needsSync: Bool = false // Whether this entry has local changes that need syncing
     var lastModified: Date = Date() // When this entry was last modified locally
+    
+    // Custom initializer to generate UUID
+    init(userId: String, technicianName: String, customerName: String, clockInTime: Date, clockOutTime: Date? = nil, lunchStartTime: Date? = nil, lunchEndTime: Date? = nil) {
+        self.id = UUID()
+        self.userId = userId
+        self.technicianName = technicianName
+        self.customerName = customerName
+        self.clockInTime = clockInTime
+        self.clockOutTime = clockOutTime
+        self.lunchStartTime = lunchStartTime
+        self.lunchEndTime = lunchEndTime
+    }
     
     var isActive: Bool {
         return clockOutTime == nil
