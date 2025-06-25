@@ -262,7 +262,7 @@ class APIService: ObservableObject {
             throw APIError.invalidResponse
         }
         
-        guard httpResponse.statusCode == 201 else {
+        guard httpResponse.statusCode == 201 || httpResponse.statusCode == 200 else {
             if let errorData = try? JSONDecoder().decode([String: String].self, from: data),
                let errorMessage = errorData["error"] {
                 throw APIError.serverError(errorMessage)
