@@ -69,8 +69,36 @@ module.exports = async function handler(req, res) {
     try {
       console.log('Creating new time entry with data:', req.body);
       
-      const { userId, technicianName, customerName, clockInTime, clockOutTime, lunchStartTime, lunchEndTime } = req.body;
+      const { id, userId, technicianName, customerName, clockInTime, clockOutTime, lunchStartTime, lunchEndTime } = req.body;
 
+      // If an ID is provided, try to update existing entry first
+      if (id) {
+        console.log('Attempting to update existing entry with ID:', id);
+        
+        const { rows: updateRows } = await sql`
+          UPDATE time_entries 
+          SET 
+            user_id = ${userId},
+            technician_name = ${technicianName},
+            customer_name = ${customerName}, 
+            clock_in_time = ${clockInTime},
+            clock_out_time = ${clockOutTime},
+            lunch_start_time = ${lunchStartTime},
+            lunch_end_time = ${lunchEndTime},
+            updated_at = NOW()
+          WHERE id = ${id}
+          RETURNING *
+        `;
+
+        if (updateRows.length > 0) {
+          console.log('Successfully updated time entry:', updateRows[0]);
+          return res.status(200).json(updateRows[0]);
+        } else {
+          console.log('Entry with ID not found, creating new entry');
+        }
+      }
+
+      // Create new entry (either no ID provided or ID not found)
       const { rows } = await sql`
         INSERT INTO time_entries (
           user_id, 
@@ -96,12 +124,12 @@ module.exports = async function handler(req, res) {
       console.log('Successfully created time entry:', rows[0]);
       res.status(201).json(rows[0]);
     } catch (error) {
-      console.error('Error creating time entry:');
+      console.error('Error creating/updating time entry:');
       console.error('Error message:', error.message);
       console.error('Error stack:', error.stack);
       
       res.status(500).json({ 
-        error: 'Failed to create time entry',
+        error: 'Failed to create/update time entry',
         details: error.message,
         timestamp: new Date().toISOString()
       });
