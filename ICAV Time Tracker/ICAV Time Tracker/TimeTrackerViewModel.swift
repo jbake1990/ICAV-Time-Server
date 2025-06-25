@@ -54,7 +54,10 @@ class TimeTrackerViewModel: ObservableObject {
             clockInTime: Date()
         )
         
-        // Don't mark incomplete entries for sync - wait until they are complete
+        // Mark for sync to show active entry in web portal
+        if authManager.isOnline {
+            newEntry.markForSync()
+        }
         
         timeEntries.append(newEntry)
         currentStatus = .clockedIn(newEntry)
@@ -63,7 +66,12 @@ class TimeTrackerViewModel: ObservableObject {
         // Clear customer name for next entry
         customerName = ""
         
-        // Don't sync clock-in only entries - wait until they are complete
+        // Sync immediately to show active entry in web portal
+        if authManager.isOnline {
+            Task {
+                await syncEntry(newEntry)
+            }
+        }
     }
     
     func clockOut() {
@@ -115,13 +123,21 @@ class TimeTrackerViewModel: ObservableObject {
                 lunchStartTime: Date()
             )
             
-            // Don't mark lunch entries for sync until they are complete
+            // Mark for sync to show active lunch entry in web portal
+            if authManager.isOnline {
+                lunchEntry.markForSync()
+            }
             
             timeEntries.append(lunchEntry)
             currentStatus = .onLunch(lunchEntry)
             saveData()
             
-            // Don't sync lunch-only entries immediately - wait for completion
+            // Sync immediately to show active lunch entry in web portal
+            if authManager.isOnline {
+                Task {
+                    await syncEntry(lunchEntry)
+                }
+            }
             
         case .onLunch:
             showAlert("Already on lunch break")
@@ -280,13 +296,8 @@ class TimeTrackerViewModel: ObservableObject {
     }
     
     private func syncPendingEntries(token: String) async {
-        // Only sync complete entries (those with clock-out time or lunch-only entries that are complete)
-        let pendingEntries = timeEntries.filter { entry in
-            entry.needsSync && (
-                entry.clockOutTime != nil || // Complete work entries
-                (entry.customerName == "Lunch Break" && entry.lunchEndTime != nil) // Complete lunch entries
-            )
-        }
+        // Sync all pending entries (both complete and incomplete) for real-time visibility
+        let pendingEntries = timeEntries.filter { $0.needsSync }
         
         if pendingEntries.isEmpty {
             return
