@@ -204,6 +204,9 @@ class TimeTrackerViewModel: ObservableObject {
         // Save time entries
         if let encoded = try? JSONEncoder().encode(timeEntries) {
             userDefaults.set(encoded, forKey: timeEntriesKey)
+            print("💾 Data saved: \(timeEntries.count) entries, \(timeEntries.filter { $0.needsSync }.count) pending")
+        } else {
+            print("❌ Failed to encode time entries for saving")
         }
     }
     
@@ -212,6 +215,9 @@ class TimeTrackerViewModel: ObservableObject {
         if let data = userDefaults.data(forKey: timeEntriesKey),
            let decoded = try? JSONDecoder().decode([TimeEntry].self, from: data) {
             timeEntries = decoded
+            print("📱 Data loaded: \(timeEntries.count) entries, \(timeEntries.filter { $0.needsSync }.count) pending")
+        } else {
+            print("📱 No saved data found or failed to decode")
         }
         
         // Check for active entry for current user
@@ -407,10 +413,17 @@ class TimeTrackerViewModel: ObservableObject {
                 if let index = self.timeEntries.firstIndex(where: { $0.id == entry.id }),
                    let serverId = apiEntry.id {
                     print("✅ Entry synced successfully: \(entry.id) -> serverId: \(serverId)")
+                    print("📝 Before update - Entry \(index): needsSync=\(self.timeEntries[index].needsSync), serverId=\(self.timeEntries[index].serverId ?? "nil")")
+                    
                     self.timeEntries[index].markAsSynced(serverId: serverId)
+                    
+                    print("📝 After update - Entry \(index): needsSync=\(self.timeEntries[index].needsSync), serverId=\(self.timeEntries[index].serverId ?? "nil")")
+                    print("📊 Total entries: \(self.timeEntries.count), Pending: \(self.timeEntries.filter { $0.needsSync }.count)")
+                    
                     self.saveData()
                 } else {
                     print("❌ Failed to find entry or get serverId for: \(entry.id)")
+                    print("🔍 Available entries: \(self.timeEntries.map { "\($0.id): needsSync=\($0.needsSync)" })")
                 }
             }
         } catch {
