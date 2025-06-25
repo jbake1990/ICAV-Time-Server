@@ -46,8 +46,36 @@ module.exports = async function handler(req, res) {
       });
     }
 
+  } else if (req.method === 'DELETE') {
+    try {
+      // Clean up duplicates - delete entries 1 and 2, keep entry 3 (the active one)
+      const deleteIds = [
+        '8c8dbb2b-fef5-43d4-835f-1d60dd67ca3b',
+        '72aa32d0-b1f4-492d-a7b8-d945306b1a00'
+      ];
+
+      let deletedCount = 0;
+      for (const id of deleteIds) {
+        const { rowCount } = await sql`DELETE FROM time_entries WHERE id = ${id}`;
+        deletedCount += rowCount;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: `Cleaned up ${deletedCount} duplicate entries`,
+        deletedCount
+      });
+
+    } catch (error) {
+      console.error('Error cleaning up duplicates:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+
   } else {
-    res.setHeader('Allow', ['GET']);
+    res.setHeader('Allow', ['GET', 'DELETE']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }; 
