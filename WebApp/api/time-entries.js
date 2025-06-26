@@ -79,6 +79,18 @@ module.exports = async function handler(req, res) {
   } else if (req.method === 'POST') {
     try {
       console.log('Creating new time entry with data:', req.body);
+      console.log('Request body details:', {
+        id: req.body.id,
+        userId: req.body.userId,
+        technicianName: req.body.technicianName,
+        customerName: req.body.customerName,
+        clockInTime: req.body.clockInTime,
+        clockOutTime: req.body.clockOutTime,
+        lunchStartTime: req.body.lunchStartTime,
+        lunchEndTime: req.body.lunchEndTime,
+        driveStartTime: req.body.driveStartTime,
+        driveEndTime: req.body.driveEndTime
+      });
       
       const { id, userId, technicianName, customerName, clockInTime, clockOutTime, lunchStartTime, lunchEndTime, driveStartTime, driveEndTime } = req.body;
 
@@ -127,6 +139,18 @@ module.exports = async function handler(req, res) {
       }
 
       // Create new entry (either no ID provided or ID not found)
+      console.log('Attempting to create new entry with values:', {
+        userId, 
+        technicianName, 
+        customerName, 
+        clockInTime, 
+        clockOutTime, 
+        lunchStartTime, 
+        lunchEndTime,
+        driveStartTime,
+        driveEndTime
+      });
+      
       const { rows } = await sql`
         INSERT INTO time_entries (
           user_id, 
