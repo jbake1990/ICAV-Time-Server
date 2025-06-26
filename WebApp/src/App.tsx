@@ -28,9 +28,24 @@ function AppContent() {
   const [clearingDatabase, setClearingDatabase] = useState(false);
   const [showClearDatabaseConfirm, setShowClearDatabaseConfirm] = useState(false);
 
+  // Clear time entries when user logs out
+  useEffect(() => {
+    if (!authState.isAuthenticated) {
+      setTimeEntries([]);
+      setUsers([]);
+      setError(null);
+    }
+  }, [authState.isAuthenticated]);
+
   // Load time entries from API
   useEffect(() => {
     const loadTimeEntries = async () => {
+      // Only load time entries if user is authenticated
+      if (!authState.isAuthenticated) {
+        console.log('User not authenticated, skipping time entries load');
+        return;
+      }
+      
       try {
         setLoading(true);
         const apiEntries = await api.getTimeEntries();
@@ -69,11 +84,17 @@ function AppContent() {
     };
 
     loadTimeEntries();
-  }, []);
+  }, [authState.isAuthenticated]); // Add authState.isAuthenticated as dependency
 
   // Load users from API
   useEffect(() => {
     const loadUsers = async () => {
+      // Only load users if user is authenticated
+      if (!authState.isAuthenticated) {
+        console.log('User not authenticated, skipping users load');
+        return;
+      }
+      
       try {
         const apiUsers = await api.getUsers();
         const formattedUsers: User[] = apiUsers.map(user => ({
@@ -89,7 +110,7 @@ function AppContent() {
     };
 
     loadUsers();
-  }, []);
+  }, [authState.isAuthenticated]); // Add authState.isAuthenticated as dependency
 
   // Filter time entries based on current filters
   const filteredEntries = useMemo(() => {
