@@ -12,7 +12,7 @@ struct TimeEntry: Identifiable, Codable {
     let userId: String
     let technicianName: String
     let customerName: String
-    var clockInTime: Date
+    var clockInTime: Date?
     var clockOutTime: Date?
     var lunchStartTime: Date?
     var lunchEndTime: Date?
@@ -45,7 +45,7 @@ struct TimeEntry: Identifiable, Codable {
         self.userId = userId
         self.technicianName = technicianName
         self.customerName = customerName
-        self.clockInTime = Date.distantPast // Placeholder that will be updated later
+        self.clockInTime = nil
         self.clockOutTime = nil
         self.lunchStartTime = nil
         self.lunchEndTime = nil
@@ -54,7 +54,7 @@ struct TimeEntry: Identifiable, Codable {
     }
     
     var isActive: Bool {
-        return clockOutTime == nil
+        return clockOutTime == nil && (clockInTime != nil || driveStartTime != nil)
     }
     
     var isOnLunch: Bool {
@@ -67,7 +67,7 @@ struct TimeEntry: Identifiable, Codable {
     
     var duration: TimeInterval? {
         guard let clockOutTime = clockOutTime else { return nil }
-        return clockOutTime.timeIntervalSince(clockInTime)
+        return clockOutTime.timeIntervalSince(clockInTime ?? Date.distantPast)
     }
     
     var formattedDuration: String? {

@@ -44,18 +44,20 @@ const TimeEntryCard: React.FC<TimeEntryCardProps> = ({ entry, onClick }) => {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center space-x-2">
-            <Clock className="w-4 h-4 text-gray-500" />
-            <div>
-              <p className="text-sm text-gray-500">Clock In</p>
-              <p className="font-medium text-gray-900">
-                {formatTime(entry.clockInTime)}
-              </p>
-              <p className="text-xs text-gray-400">
-                {formatDate(entry.clockInTime)}
-              </p>
+          {entry.clockInTime && (
+            <div className="flex items-center space-x-2">
+              <Clock className="w-4 h-4 text-gray-500" />
+              <div>
+                <p className="text-sm text-gray-500">Clock In</p>
+                <p className="font-medium text-gray-900">
+                  {formatTime(entry.clockInTime)}
+                </p>
+                <p className="text-xs text-gray-400">
+                  {formatDate(entry.clockInTime)}
+                </p>
+              </div>
             </div>
-          </div>
+          )}
 
           {entry.clockOutTime && (
             <div className="flex items-center space-x-2">

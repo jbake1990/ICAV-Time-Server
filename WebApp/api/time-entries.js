@@ -33,19 +33,19 @@ module.exports = async function handler(req, res) {
         userId: row.user_id,
         technicianName: row.technician_name,
         customerName: row.customer_name,
-        clockInTime: new Date(row.clock_in_time),
+        clockInTime: row.clock_in_time ? new Date(row.clock_in_time) : undefined,
         clockOutTime: row.clock_out_time ? new Date(row.clock_out_time) : undefined,
         lunchStartTime: row.lunch_start_time ? new Date(row.lunch_start_time) : undefined,
         lunchEndTime: row.lunch_end_time ? new Date(row.lunch_end_time) : undefined,
         driveStartTime: row.drive_start_time ? new Date(row.drive_start_time) : undefined,
         driveEndTime: row.drive_end_time ? new Date(row.drive_end_time) : undefined,
-        isActive: !row.clock_out_time,
+        isActive: !row.clock_out_time && (row.clock_in_time || row.drive_start_time),
         isOnLunch: row.lunch_start_time && !row.lunch_end_time,
         isDriving: row.drive_start_time && !row.drive_end_time,
-        duration: row.clock_out_time ? 
+        duration: row.clock_out_time && row.clock_in_time ? 
           new Date(row.clock_out_time).getTime() - new Date(row.clock_in_time).getTime() : 
           undefined,
-        formattedDuration: row.clock_out_time ? 
+        formattedDuration: row.clock_out_time && row.clock_in_time ? 
           formatDuration(new Date(row.clock_out_time).getTime() - new Date(row.clock_in_time).getTime()) : 
           undefined,
         lunchDuration: row.lunch_start_time && row.lunch_end_time ? 

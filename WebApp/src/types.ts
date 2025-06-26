@@ -3,7 +3,7 @@ export interface TimeEntry {
   userId: string;
   technicianName: string;
   customerName: string;
-  clockInTime: Date;
+  clockInTime?: Date;
   clockOutTime?: Date;
   lunchStartTime?: Date;
   lunchEndTime?: Date;

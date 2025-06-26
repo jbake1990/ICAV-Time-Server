@@ -1,26 +1,15 @@
--- Migration script to add drive time columns to existing time_entries table
--- Run this in your Vercel PostgreSQL database
+-- Migration to add drive time columns and make clock_in_time nullable
+-- Run this on your Vercel PostgreSQL database
 
 -- Add drive time columns if they don't exist
-DO $$ 
-BEGIN
-    -- Add drive_start_time column if it doesn't exist
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'time_entries' 
-        AND column_name = 'drive_start_time'
-    ) THEN
-        ALTER TABLE time_entries ADD COLUMN drive_start_time TIMESTAMPTZ;
-    END IF;
+ALTER TABLE time_entries 
+ADD COLUMN IF NOT EXISTS drive_start_time TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS drive_end_time TIMESTAMPTZ;
 
-    -- Add drive_end_time column if it doesn't exist
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'time_entries' 
-        AND column_name = 'drive_end_time'
-    ) THEN
-        ALTER TABLE time_entries ADD COLUMN drive_end_time TIMESTAMPTZ;
-    END IF;
+-- Make clock_in_time nullable to support driving-only entries
+ALTER TABLE time_entries 
+ALTER COLUMN clock_in_time DROP NOT NULL;
 
-    RAISE NOTICE 'Migration completed successfully';
-END $$; 
+-- Add indexes for drive time columns
+CREATE INDEX IF NOT EXISTS idx_time_entries_drive_start_time ON time_entries(drive_start_time);
+CREATE INDEX IF NOT EXISTS idx_time_entries_drive_end_time ON time_entries(drive_end_time); 
