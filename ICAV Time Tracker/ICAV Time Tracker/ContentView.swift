@@ -168,9 +168,11 @@ struct ContentView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     
-                    Text("Started at: \(formatDate(entry.clockInTime))")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    if let clockInTime = entry.clockInTime {
+                        Text("Started at: \(formatDate(clockInTime))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else if case .onLunch(let entry) = viewModel.currentStatus {
