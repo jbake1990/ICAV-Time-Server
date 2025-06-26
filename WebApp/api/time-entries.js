@@ -30,11 +30,19 @@ module.exports = async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       console.log('Attempting to fetch time entries from database...');
+      console.log('Request headers:', req.headers);
       
       // Verify user session and get user ID and role
       const userSession = await verifyUserSession(req.headers.authorization);
       const userId = userSession.user_id;
       const userRole = userSession.role;
+      
+      console.log('Authenticated user for GET:', {
+        userId: userId,
+        role: userRole,
+        username: userSession.username,
+        displayName: userSession.display_name
+      });
       
       console.log('Fetching time entries for user ID:', userId, 'with role:', userRole);
       
@@ -147,11 +155,20 @@ module.exports = async function handler(req, res) {
   } else if (req.method === 'POST') {
     try {
       console.log('Creating new time entry with data:', req.body);
+      console.log('Full request body:', JSON.stringify(req.body, null, 2));
+      console.log('Request headers:', req.headers);
       
       // Verify user session and get user ID and role
       const userSession = await verifyUserSession(req.headers.authorization);
       const userId = userSession.user_id;
       const userRole = userSession.role;
+      
+      console.log('Authenticated user:', {
+        userId: userId,
+        role: userRole,
+        username: userSession.username,
+        displayName: userSession.display_name
+      });
       
       console.log('Request body details:', {
         id: req.body.id,
@@ -173,6 +190,7 @@ module.exports = async function handler(req, res) {
       const targetUserId = userRole === 'admin' ? (req.body.userId || userId) : userId;
       
       console.log('Target user ID for entry:', targetUserId, '(requested by user:', userId, 'with role:', userRole, ')');
+      console.log('Request body userId:', req.body.userId, 'vs authenticated userId:', userId);
 
       // If an ID is provided, try to update existing entry first
       if (id) {
