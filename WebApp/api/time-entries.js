@@ -1,11 +1,41 @@
 const { sql } = require('@vercel/postgres');
 
+// Helper function to verify user session and get user ID
+async function verifyUserSession(authHeader) {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new Error('No valid authorization header');
+  }
+  
+  const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+  
+  const { rows } = await sql`
+    SELECT s.user_id, u.id, u.username, u.display_name, u.email, u.role
+    FROM user_sessions s
+    JOIN users u ON s.user_id = u.id
+    WHERE s.session_token = ${token} 
+      AND s.expires_at > NOW()
+      AND u.is_active = true
+  `;
+  
+  if (rows.length === 0) {
+    throw new Error('Invalid or expired session');
+  }
+  
+  return rows[0];
+}
+
 module.exports = async function handler(req, res) {
   console.log('Time entries API called with method:', req.method);
   
   if (req.method === 'GET') {
     try {
       console.log('Attempting to fetch time entries from database...');
+      
+      // Verify user session and get user ID
+      const userSession = await verifyUserSession(req.headers.authorization);
+      const userId = userSession.user_id;
+      
+      console.log('Fetching time entries for user ID:', userId);
       
       const { rows } = await sql`
         SELECT 
@@ -22,10 +52,11 @@ module.exports = async function handler(req, res) {
           created_at,
           updated_at
         FROM time_entries 
+        WHERE user_id = ${userId}
         ORDER BY clock_in_time DESC
       `;
 
-      console.log('Successfully fetched', rows.length, 'time entries');
+      console.log('Successfully fetched', rows.length, 'time entries for user');
 
       // Format the data to match the frontend expectations
       const formattedRows = rows.map(row => ({
@@ -33,12 +64,12 @@ module.exports = async function handler(req, res) {
         userId: row.user_id,
         technicianName: row.technician_name,
         customerName: row.customer_name,
-        clockInTime: row.clock_in_time ? new Date(row.clock_in_time) : undefined,
-        clockOutTime: row.clock_out_time ? new Date(row.clock_out_time) : undefined,
-        lunchStartTime: row.lunch_start_time ? new Date(row.lunch_start_time) : undefined,
-        lunchEndTime: row.lunch_end_time ? new Date(row.lunch_end_time) : undefined,
-        driveStartTime: row.drive_start_time ? new Date(row.drive_start_time) : undefined,
-        driveEndTime: row.drive_end_time ? new Date(row.drive_end_time) : undefined,
+        clockInTime: row.clock_in_time ? new Date(row.clock_in_time).toISOString() : undefined,
+        clockOutTime: row.clock_out_time ? new Date(row.clock_out_time).toISOString() : undefined,
+        lunchStartTime: row.lunch_start_time ? new Date(row.lunch_start_time).toISOString() : undefined,
+        lunchEndTime: row.lunch_end_time ? new Date(row.lunch_end_time).toISOString() : undefined,
+        driveStartTime: row.drive_start_time ? new Date(row.drive_start_time).toISOString() : undefined,
+        driveEndTime: row.drive_end_time ? new Date(row.drive_end_time).toISOString() : undefined,
         isActive: !row.clock_out_time && (row.clock_in_time || row.drive_start_time),
         isOnLunch: row.lunch_start_time && !row.lunch_end_time,
         isDriving: row.drive_start_time && !row.drive_end_time,
@@ -70,15 +101,28 @@ module.exports = async function handler(req, res) {
       console.error('Error stack:', error.stack);
       console.error('Error details:', error);
       
-      res.status(500).json({ 
-        error: 'Failed to fetch time entries',
-        details: error.message,
-        timestamp: new Date().toISOString()
-      });
+      if (error.message.includes('No valid authorization header') || error.message.includes('Invalid or expired session')) {
+        res.status(401).json({ 
+          error: 'Authentication required',
+          details: error.message,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        res.status(500).json({ 
+          error: 'Failed to fetch time entries',
+          details: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
     }
   } else if (req.method === 'POST') {
     try {
       console.log('Creating new time entry with data:', req.body);
+      
+      // Verify user session and get user ID
+      const userSession = await verifyUserSession(req.headers.authorization);
+      const userId = userSession.user_id;
+      
       console.log('Request body details:', {
         id: req.body.id,
         userId: req.body.userId,
@@ -92,7 +136,7 @@ module.exports = async function handler(req, res) {
         driveEndTime: req.body.driveEndTime
       });
       
-      const { id, userId, technicianName, customerName, clockInTime, clockOutTime, lunchStartTime, lunchEndTime, driveStartTime, driveEndTime } = req.body;
+      const { id, technicianName, customerName, clockInTime, clockOutTime, lunchStartTime, lunchEndTime, driveStartTime, driveEndTime } = req.body;
 
       // If an ID is provided, try to update existing entry first
       if (id) {
@@ -111,7 +155,7 @@ module.exports = async function handler(req, res) {
             drive_start_time = ${driveStartTime},
             drive_end_time = ${driveEndTime},
             updated_at = NOW()
-          WHERE id = ${id}
+          WHERE id = ${id} AND user_id = ${userId}
           RETURNING *
         `;
 
@@ -134,7 +178,7 @@ module.exports = async function handler(req, res) {
           
           return res.status(200).json(formattedResponse);
         } else {
-          console.log('Entry with ID not found, creating new entry');
+          console.log('Entry with ID not found or user mismatch, creating new entry');
         }
       }
 
@@ -199,11 +243,19 @@ module.exports = async function handler(req, res) {
       console.error('Error message:', error.message);
       console.error('Error stack:', error.stack);
       
-      res.status(500).json({ 
-        error: 'Failed to create/update time entry',
-        details: error.message,
-        timestamp: new Date().toISOString()
-      });
+      if (error.message.includes('No valid authorization header') || error.message.includes('Invalid or expired session')) {
+        res.status(401).json({ 
+          error: 'Authentication required',
+          details: error.message,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        res.status(500).json({ 
+          error: 'Failed to create/update time entry',
+          details: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
     }
   } else {
     res.setHeader('Allow', ['GET', 'POST']);
