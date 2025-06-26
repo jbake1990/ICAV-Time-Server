@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Download, FileText, Users, Building, Clock, Filter, BarChart3, X } from 'lucide-react';
+import { Calendar, Download, FileText, Users, Building, X } from 'lucide-react';
 import { TimeEntry, ReportType, ReportFilters, ReportData, TechnicianReport, CustomerReport } from '../types';
 import { formatDate, formatTime } from '../utils/timeUtils';
 
@@ -9,7 +9,7 @@ interface ReportsProps {
 }
 
 export default function Reports({ timeEntries, onClose }: ReportsProps) {
-  const [selectedReportType, setSelectedReportType] = useState<ReportType>('summary');
+  const [selectedReportType, setSelectedReportType] = useState<ReportType>('technician');
   const [filters, setFilters] = useState<ReportFilters>({
     dateRange: {
       start: new Date(new Date().getFullYear(), new Date().getMonth(), 1), // First day of current month
@@ -17,17 +17,12 @@ export default function Reports({ timeEntries, onClose }: ReportsProps) {
     },
     includeDriveTime: true,
     includeLunchTime: true,
-    groupBy: 'day'
+    groupBy: 'technician'
   });
 
   const reportTypes = [
-    { id: 'summary', name: 'Summary Report', icon: BarChart3, description: 'Overview of all time entries' },
-    { id: 'daily', name: 'Daily Report', icon: Calendar, description: 'Daily breakdown of time entries' },
-    { id: 'weekly', name: 'Weekly Report', icon: Calendar, description: 'Weekly summary of time entries' },
-    { id: 'monthly', name: 'Monthly Report', icon: Calendar, description: 'Monthly summary of time entries' },
     { id: 'technician', name: 'Technician Report', icon: Users, description: 'Time entries grouped by technician' },
-    { id: 'customer', name: 'Customer Report', icon: Building, description: 'Time entries grouped by customer' },
-    { id: 'custom', name: 'Custom Report', icon: Filter, description: 'Custom date range and filters' }
+    { id: 'customer', name: 'Customer Report', icon: Building, description: 'Time entries grouped by customer' }
   ];
 
   // Filter entries based on current filters
@@ -54,108 +49,6 @@ export default function Reports({ timeEntries, onClose }: ReportsProps) {
       return true;
     });
   }, [timeEntries, filters]);
-
-  // Generate report data
-  const reportData = useMemo((): ReportData => {
-    const totalEntries = filteredEntries.length;
-    const totalHours = filteredEntries
-      .filter(entry => entry.duration)
-      .reduce((sum, entry) => sum + (entry.duration || 0), 0) / (1000 * 60 * 60);
-    
-    const totalDriveHours = filteredEntries
-      .filter(entry => entry.driveDuration)
-      .reduce((sum, entry) => sum + (entry.driveDuration || 0), 0) / (1000 * 60 * 60);
-    
-    const totalLunchHours = filteredEntries
-      .filter(entry => entry.lunchDuration)
-      .reduce((sum, entry) => sum + (entry.lunchDuration || 0), 0) / (1000 * 60 * 60);
-
-    const techniciansCount = new Set(filteredEntries.map(entry => entry.technicianName)).size;
-    const customersCount = new Set(filteredEntries.map(entry => entry.customerName)).size;
-    
-    const daysCount = Math.max(1, new Set(filteredEntries.map(entry => {
-      const date = entry.clockInTime || entry.driveStartTime;
-      return date ? date.toDateString() : 'unknown';
-    })).size);
-
-    const averageHoursPerDay = totalHours / daysCount;
-
-    // Group data based on selected grouping
-    let groupedData: ReportData['groupedData'] = {};
-    
-    if (filters.groupBy === 'day') {
-      filteredEntries.forEach(entry => {
-        const dateKey = (entry.clockInTime || entry.driveStartTime)?.toDateString() || 'Unknown';
-        if (!groupedData![dateKey]) {
-          groupedData![dateKey] = {
-            entries: [],
-            totalHours: 0,
-            totalDriveHours: 0,
-            totalLunchHours: 0,
-            entryCount: 0
-          };
-        }
-        groupedData![dateKey].entries.push(entry);
-        groupedData![dateKey].totalHours += (entry.duration || 0) / (1000 * 60 * 60);
-        groupedData![dateKey].totalDriveHours += (entry.driveDuration || 0) / (1000 * 60 * 60);
-        groupedData![dateKey].totalLunchHours += (entry.lunchDuration || 0) / (1000 * 60 * 60);
-        groupedData![dateKey].entryCount += 1;
-      });
-    } else if (filters.groupBy === 'technician') {
-      filteredEntries.forEach(entry => {
-        const techKey = entry.technicianName;
-        if (!groupedData![techKey]) {
-          groupedData![techKey] = {
-            entries: [],
-            totalHours: 0,
-            totalDriveHours: 0,
-            totalLunchHours: 0,
-            entryCount: 0
-          };
-        }
-        groupedData![techKey].entries.push(entry);
-        groupedData![techKey].totalHours += (entry.duration || 0) / (1000 * 60 * 60);
-        groupedData![techKey].totalDriveHours += (entry.driveDuration || 0) / (1000 * 60 * 60);
-        groupedData![techKey].totalLunchHours += (entry.lunchDuration || 0) / (1000 * 60 * 60);
-        groupedData![techKey].entryCount += 1;
-      });
-    } else if (filters.groupBy === 'customer') {
-      filteredEntries.forEach(entry => {
-        const customerKey = entry.customerName;
-        if (!groupedData![customerKey]) {
-          groupedData![customerKey] = {
-            entries: [],
-            totalHours: 0,
-            totalDriveHours: 0,
-            totalLunchHours: 0,
-            entryCount: 0
-          };
-        }
-        groupedData![customerKey].entries.push(entry);
-        groupedData![customerKey].totalHours += (entry.duration || 0) / (1000 * 60 * 60);
-        groupedData![customerKey].totalDriveHours += (entry.driveDuration || 0) / (1000 * 60 * 60);
-        groupedData![customerKey].totalLunchHours += (entry.lunchDuration || 0) / (1000 * 60 * 60);
-        groupedData![customerKey].entryCount += 1;
-      });
-    }
-
-    return {
-      type: selectedReportType,
-      filters,
-      generatedAt: new Date(),
-      summary: {
-        totalEntries,
-        totalHours,
-        totalDriveHours,
-        totalLunchHours,
-        averageHoursPerDay,
-        techniciansCount,
-        customersCount
-      },
-      entries: filteredEntries,
-      groupedData
-    };
-  }, [filteredEntries, selectedReportType, filters]);
 
   // Generate technician reports
   const technicianReports = useMemo((): TechnicianReport[] => {
@@ -288,28 +181,11 @@ export default function Reports({ timeEntries, onClose }: ReportsProps) {
     window.URL.revokeObjectURL(url);
   };
 
-  const exportToJSON = () => {
-    const data = {
-      report: reportData,
-      technicianReports,
-      customerReports,
-      exportedAt: new Date().toISOString()
-    };
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `time-tracker-report-${formatDate(new Date())}.json`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
+        <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
           <div className="flex items-center space-x-3">
             <FileText className="w-6 h-6 text-blue-600" />
             <h2 className="text-2xl font-bold text-gray-900">Reports</h2>
@@ -323,13 +199,6 @@ export default function Reports({ timeEntries, onClose }: ReportsProps) {
               <span>Export CSV</span>
             </button>
             <button
-              onClick={exportToJSON}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              <span>Export JSON</span>
-            </button>
-            <button
               onClick={onClose}
               className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
             >
@@ -338,9 +207,9 @@ export default function Reports({ timeEntries, onClose }: ReportsProps) {
           </div>
         </div>
 
-        <div className="flex h-full">
+        <div className="flex flex-1 overflow-hidden">
           {/* Sidebar */}
-          <div className="w-80 border-r bg-gray-50 p-4">
+          <div className="w-80 border-r bg-gray-50 p-4 flex-shrink-0">
             <div className="space-y-4">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">Report Type</h3>
@@ -428,26 +297,6 @@ export default function Reports({ timeEntries, onClose }: ReportsProps) {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Group By
-                    </label>
-                    <select
-                      value={filters.groupBy}
-                      onChange={(e) => setFilters(prev => ({
-                        ...prev,
-                        groupBy: e.target.value as any
-                      }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="day">Day</option>
-                      <option value="week">Week</option>
-                      <option value="month">Month</option>
-                      <option value="technician">Technician</option>
-                      <option value="customer">Customer</option>
-                    </select>
-                  </div>
-
                   <div className="space-y-2">
                     <label className="flex items-center">
                       <input
@@ -484,58 +333,40 @@ export default function Reports({ timeEntries, onClose }: ReportsProps) {
             {/* Summary Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div className="bg-blue-50 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-blue-900">{reportData.summary.totalEntries}</div>
+                <div className="text-2xl font-bold text-blue-900">{filteredEntries.length}</div>
                 <div className="text-sm text-blue-600">Total Entries</div>
               </div>
               <div className="bg-green-50 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-green-900">{reportData.summary.totalHours.toFixed(1)}</div>
+                <div className="text-2xl font-bold text-green-900">
+                  {(filteredEntries
+                    .filter(entry => entry.duration)
+                    .reduce((sum, entry) => sum + (entry.duration || 0), 0) / (1000 * 60 * 60))
+                    .toFixed(1)}
+                </div>
                 <div className="text-sm text-green-600">Total Hours</div>
               </div>
               <div className="bg-purple-50 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-purple-900">{reportData.summary.totalDriveHours.toFixed(1)}</div>
+                <div className="text-2xl font-bold text-purple-900">
+                  {(filteredEntries
+                    .filter(entry => entry.driveDuration)
+                    .reduce((sum, entry) => sum + (entry.driveDuration || 0), 0) / (1000 * 60 * 60))
+                    .toFixed(1)}
+                </div>
                 <div className="text-sm text-purple-600">Drive Hours</div>
               </div>
               <div className="bg-orange-50 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-orange-900">{reportData.summary.totalLunchHours.toFixed(1)}</div>
+                <div className="text-2xl font-bold text-orange-900">
+                  {(filteredEntries
+                    .filter(entry => entry.lunchDuration)
+                    .reduce((sum, entry) => sum + (entry.lunchDuration || 0), 0) / (1000 * 60 * 60))
+                    .toFixed(1)}
+                </div>
                 <div className="text-sm text-orange-600">Lunch Hours</div>
               </div>
             </div>
 
             {/* Report Content */}
             <div className="space-y-6">
-              {selectedReportType === 'summary' && (
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">Summary Report</h3>
-                  <div className="bg-white border rounded-lg p-6">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                      <div>
-                        <h4 className="font-medium text-gray-900 mb-2">Overview</h4>
-                        <div className="space-y-1 text-sm text-gray-600">
-                          <div>Total Entries: {reportData.summary.totalEntries}</div>
-                          <div>Total Hours: {reportData.summary.totalHours.toFixed(1)}</div>
-                          <div>Average Hours/Day: {reportData.summary.averageHoursPerDay.toFixed(1)}</div>
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900 mb-2">Technicians</h4>
-                        <div className="space-y-1 text-sm text-gray-600">
-                          <div>Active Technicians: {reportData.summary.techniciansCount}</div>
-                          <div>Total Customers: {reportData.summary.customersCount}</div>
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900 mb-2">Time Breakdown</h4>
-                        <div className="space-y-1 text-sm text-gray-600">
-                          <div>Work Hours: {reportData.summary.totalHours.toFixed(1)}</div>
-                          <div>Drive Hours: {reportData.summary.totalDriveHours.toFixed(1)}</div>
-                          <div>Lunch Hours: {reportData.summary.totalLunchHours.toFixed(1)}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {selectedReportType === 'technician' && (
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-4">Technician Report</h3>
@@ -596,45 +427,6 @@ export default function Reports({ timeEntries, onClose }: ReportsProps) {
                           <div>
                             <div className="font-medium text-gray-900">{report.technicians.length}</div>
                             <div className="text-gray-500">Technicians</div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Grouped Data Display */}
-              {reportData.groupedData && Object.keys(reportData.groupedData).length > 0 && (
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                    {filters.groupBy === 'day' ? 'Daily' : 
-                     filters.groupBy === 'technician' ? 'Technician' : 
-                     filters.groupBy === 'customer' ? 'Customer' : 'Grouped'} Breakdown
-                  </h3>
-                  <div className="space-y-4">
-                    {Object.entries(reportData.groupedData).map(([key, data]) => (
-                      <div key={key} className="bg-white border rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-lg font-medium text-gray-900">{key}</h4>
-                          <div className="text-sm text-gray-500">{data.entryCount} entries</div>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <div className="font-medium text-gray-900">{data.totalHours.toFixed(1)}</div>
-                            <div className="text-gray-500">Total Hours</div>
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900">{data.totalDriveHours.toFixed(1)}</div>
-                            <div className="text-gray-500">Drive Hours</div>
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900">{data.totalLunchHours.toFixed(1)}</div>
-                            <div className="text-gray-500">Lunch Hours</div>
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900">{data.entryCount}</div>
-                            <div className="text-gray-500">Entries</div>
                           </div>
                         </div>
                       </div>
