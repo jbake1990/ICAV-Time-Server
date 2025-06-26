@@ -60,10 +60,12 @@ data class TimeEntryRequest(
     val userId: String,
     val technicianName: String,
     val customerName: String,
-    val clockInTime: String,
+    val clockInTime: String? = null,
     val clockOutTime: String? = null,
     val lunchStartTime: String? = null,
-    val lunchEndTime: String? = null
+    val lunchEndTime: String? = null,
+    val driveStartTime: String? = null,
+    val driveEndTime: String? = null
 )
 
 data class TimeEntryResponse(
@@ -71,10 +73,12 @@ data class TimeEntryResponse(
     val userId: String,
     val technicianName: String,
     val customerName: String,
-    val clockInTime: String,
+    val clockInTime: String?,
     val clockOutTime: String?,
     val lunchStartTime: String?,
-    val lunchEndTime: String?
+    val lunchEndTime: String?,
+    val driveStartTime: String?,
+    val driveEndTime: String?
 )
 
 data class HealthResponse(

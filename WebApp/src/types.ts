@@ -64,4 +64,66 @@ export interface DashboardStats {
   totalHours: number;
   averageHoursPerDay: number;
   techniciansWorking: number;
+}
+
+// New types for reporting system
+export type ReportType = 'daily' | 'weekly' | 'monthly' | 'custom' | 'technician' | 'customer' | 'summary';
+
+export interface ReportFilters {
+  dateRange: {
+    start: Date;
+    end: Date;
+  };
+  technicianName?: string;
+  customerName?: string;
+  includeDriveTime?: boolean;
+  includeLunchTime?: boolean;
+  groupBy?: 'day' | 'week' | 'month' | 'technician' | 'customer';
+}
+
+export interface ReportData {
+  type: ReportType;
+  filters: ReportFilters;
+  generatedAt: Date;
+  summary: {
+    totalEntries: number;
+    totalHours: number;
+    totalDriveHours: number;
+    totalLunchHours: number;
+    averageHoursPerDay: number;
+    techniciansCount: number;
+    customersCount: number;
+  };
+  entries: TimeEntry[];
+  groupedData?: {
+    [key: string]: {
+      entries: TimeEntry[];
+      totalHours: number;
+      totalDriveHours: number;
+      totalLunchHours: number;
+      entryCount: number;
+    };
+  };
+}
+
+export interface TechnicianReport {
+  technicianName: string;
+  totalHours: number;
+  totalDriveHours: number;
+  totalLunchHours: number;
+  entryCount: number;
+  customers: string[];
+  averageHoursPerDay: number;
+  entries: TimeEntry[];
+}
+
+export interface CustomerReport {
+  customerName: string;
+  totalHours: number;
+  totalDriveHours: number;
+  totalLunchHours: number;
+  entryCount: number;
+  technicians: string[];
+  averageHoursPerDay: number;
+  entries: TimeEntry[];
 } 

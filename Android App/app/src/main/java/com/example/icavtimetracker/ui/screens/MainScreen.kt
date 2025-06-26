@@ -157,14 +157,16 @@ fun MainScreen(
                     set(Calendar.SECOND, 0)
                     set(Calendar.MILLISECOND, 0)
                 }
-                val entryDate = Calendar.getInstance().apply {
-                    time = entry.clockInTime
-                    set(Calendar.HOUR_OF_DAY, 0)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
+                val entryDate = entry.clockInTime?.let { clockInTime ->
+                    Calendar.getInstance().apply {
+                        time = clockInTime
+                        set(Calendar.HOUR_OF_DAY, 0)
+                        set(Calendar.MINUTE, 0)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }
                 }
-                today.time == entryDate.time
+                entryDate?.time == today.time
             }.sortedBy { it.clockInTime }
             
             if (todayEntries.size == 0) {
@@ -320,11 +322,13 @@ fun StatusHeader(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Text(
-                                text = "Started at: ${SimpleDateFormat("MMM dd, h:mm a", Locale.getDefault()).format(entry.clockInTime)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            entry.clockInTime?.let { clockInTime ->
+                                Text(
+                                    text = "Started at: ${SimpleDateFormat("MMM dd, h:mm a", Locale.getDefault()).format(clockInTime)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
@@ -341,6 +345,26 @@ fun StatusHeader(
                             entry.lunchStartTime?.let { lunchStart ->
                                 Text(
                                     text = "Lunch started at: ${SimpleDateFormat("MMM dd, h:mm a", Locale.getDefault()).format(lunchStart)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+                ClockStatus.DRIVING -> {
+                    currentEntry?.let { entry ->
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "Currently driving to: ${entry.customerName}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            entry.driveStartTime?.let { driveStart ->
+                                Text(
+                                    text = "Drive started at: ${SimpleDateFormat("MMM dd, h:mm a", Locale.getDefault()).format(driveStart)}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -439,7 +463,7 @@ fun ClockButtons(
                 ) {
                     Icon(
                         imageVector = when (clockStatus) {
-                            ClockStatus.CLOCKED_OUT -> Icons.Default.DirectionsCar
+                            ClockStatus.CLOCKED_OUT -> Icons.Default.LocationOn
                             ClockStatus.DRIVING -> Icons.Default.PlayArrow
                             ClockStatus.CLOCKED_IN -> Icons.Default.Close
                             ClockStatus.ON_LUNCH -> Icons.Default.Close
@@ -540,21 +564,23 @@ fun TodayTimestampRow(entry: TimeEntry) {
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 // Clock In
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(12.dp),
-                        tint = Color.Green
-                    )
-                    Text(
-                        text = "Clock In: ${SimpleDateFormat("h:mm a", Locale.getDefault()).format(entry.clockInTime)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                entry.clockInTime?.let { clockInTime ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                            tint = Color.Green
+                        )
+                        Text(
+                            text = "Clock In: ${SimpleDateFormat("h:mm a", Locale.getDefault()).format(clockInTime)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 
                 // Clock Out
@@ -624,7 +650,7 @@ fun TodayTimestampRow(entry: TimeEntry) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.DirectionsCar,
+                            imageVector = Icons.Default.LocationOn,
                             contentDescription = null,
                             modifier = Modifier.size(12.dp),
                             tint = Color(0xFF2196F3) // Blue
@@ -644,7 +670,7 @@ fun TodayTimestampRow(entry: TimeEntry) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Stop,
+                            imageVector = Icons.Default.Close,
                             contentDescription = null,
                             modifier = Modifier.size(12.dp),
                             tint = Color(0xFF2196F3) // Blue
@@ -685,7 +711,7 @@ fun TodayTimestampRow(entry: TimeEntry) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.DirectionsCar,
+                            imageVector = Icons.Default.LocationOn,
                             contentDescription = null,
                             modifier = Modifier.size(12.dp),
                             tint = Color(0xFF2196F3) // Blue

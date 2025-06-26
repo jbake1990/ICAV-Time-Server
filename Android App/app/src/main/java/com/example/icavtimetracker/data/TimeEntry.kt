@@ -13,7 +13,7 @@ data class TimeEntry(
     @SerializedName("customerName")
     val customerName: String,
     @SerializedName("clockInTime")
-    val clockInTime: Date,
+    val clockInTime: Date? = null,
     @SerializedName("clockOutTime")
     var clockOutTime: Date? = null,
     @SerializedName("lunchStartTime")
@@ -42,7 +42,11 @@ data class TimeEntry(
         get() = driveStartTime != null && driveEndTime == null
     
     val duration: Long?
-        get() = clockOutTime?.let { it.time - clockInTime.time }
+        get() = clockOutTime?.let { clockOut ->
+            clockInTime?.let { clockIn ->
+                clockOut.time - clockIn.time
+            }
+        }
     
     val formattedDuration: String?
         get() = duration?.let { durationMs ->

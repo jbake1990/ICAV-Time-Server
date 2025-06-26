@@ -1,8 +1,10 @@
 package com.example.icavtimetracker.viewmodel
 
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.icavtimetracker.AuthManager
 import com.example.icavtimetracker.data.ClockStatus
 import com.example.icavtimetracker.data.TimeEntry
 import com.example.icavtimetracker.data.User
@@ -13,8 +15,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.*
 
-class TimeTrackerViewModel : ViewModel() {
+class TimeTrackerViewModel(application: Context) : ViewModel() {
     private val repository = TimeTrackerRepository()
+    private val authManager = AuthManager(application)
     
     // State flows
     private val _isLoading = MutableStateFlow(false)
@@ -44,6 +47,36 @@ class TimeTrackerViewModel : ViewModel() {
     private val _pendingSyncCount = MutableStateFlow(0)
     val pendingSyncCount: StateFlow<Int> = _pendingSyncCount.asStateFlow()
     
+    init {
+        // Check for existing authentication on app start
+        checkExistingAuth()
+    }
+    
+    private fun checkExistingAuth() {
+        if (authManager.isAuthenticated()) {
+            val savedToken = authManager.getAuthToken()
+            val savedUser = authManager.getUser()
+            
+            if (savedToken != null && savedUser != null) {
+                Log.d("TimeTrackerViewModel", "Found existing authentication for user: ${savedUser.displayName}")
+                _authToken.value = savedToken
+                _currentUser.value = savedUser
+                _isAuthenticated.value = true
+                
+                // Set the auth token in the repository for API calls
+                repository.setAuthToken(savedToken)
+                
+                // Load time entries for the authenticated user
+                loadTimeEntries()
+            } else {
+                Log.d("TimeTrackerViewModel", "Invalid saved authentication data, clearing")
+                authManager.clearAuthData()
+            }
+        } else {
+            Log.d("TimeTrackerViewModel", "No existing authentication found")
+        }
+    }
+    
     // Computed properties
     val activeEntries: List<TimeEntry>
         get() = _timeEntries.value.filter { it.isActive }
@@ -65,10 +98,19 @@ class TimeTrackerViewModel : ViewModel() {
                     _authToken.value = token
                     _currentUser.value = user
                     _isAuthenticated.value = true
+                    
+                    // Set the auth token in the repository for API calls
+                    repository.setAuthToken(token)
+                    
+                    // Save authentication data for persistence
+                    authManager.saveAuthData(token, user)
+                    
+                    Log.d("TimeTrackerViewModel", "Login successful for user: ${user.displayName}")
                     loadTimeEntries()
                 },
                 onFailure = { exception ->
                     _error.value = exception.message ?: "Login failed"
+                    Log.e("TimeTrackerViewModel", "Login failed: ${exception.message}")
                 }
             )
             
@@ -77,6 +119,15 @@ class TimeTrackerViewModel : ViewModel() {
     }
     
     fun logout() {
+        Log.d("TimeTrackerViewModel", "Logging out user: ${_currentUser.value?.displayName}")
+        
+        // Clear authentication data
+        authManager.clearAuthData()
+        
+        // Clear auth token from repository
+        repository.setAuthToken("")
+        
+        // Clear state
         _authToken.value = null
         _currentUser.value = null
         _isAuthenticated.value = false

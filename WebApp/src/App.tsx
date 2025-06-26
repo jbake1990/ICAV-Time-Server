@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Clock, Users, Settings, Download, X, UserPlus, Trash2, LogOut, UserCheck, Shield } from 'lucide-react';
+import { Clock, Users, Settings, Download, X, UserPlus, Trash2, LogOut, UserCheck, Shield, FileText } from 'lucide-react';
 import { TimeEntry, TimeEntryFilters, DashboardStats, User } from './types';
 import { api } from './services/api';
 import DashboardStatsComponent from './components/DashboardStats';
 import TimeEntryFiltersComponent from './components/TimeEntryFilters';
 import TimeEntryCard from './components/TimeEntryCard';
 import { LoginForm } from './components/LoginForm';
+import Reports from './components/Reports';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { formatDate, formatTime } from './utils/timeUtils';
 
@@ -19,6 +20,7 @@ function AppContent() {
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showCreateUser, setShowCreateUser] = useState(false);
+  const [showReports, setShowReports] = useState(false);
   const [newUser, setNewUser] = useState({ username: '', displayName: '', password: '', role: 'tech' });
   const [creatingUser, setCreatingUser] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
@@ -380,6 +382,13 @@ function AppContent() {
               {/* Admin-only features */}
               {authState.user?.role === 'admin' && (
                 <>
+                  <button
+                    onClick={() => setShowReports(true)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>Reports</span>
+                  </button>
                   <button
                     onClick={handleExport}
                     className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
@@ -836,6 +845,14 @@ function AppContent() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Reports Modal */}
+      {showReports && (
+        <Reports
+          timeEntries={timeEntries}
+          onClose={() => setShowReports(false)}
+        />
       )}
     </div>
   );

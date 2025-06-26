@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    TimeTrackerApp()
+                    TimeTrackerApp(applicationContext)
                 }
             }
         }
@@ -36,12 +36,15 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun TimeTrackerApp() {
+fun TimeTrackerApp(applicationContext: android.content.Context) {
     val navController = rememberNavController()
-    val viewModel: TimeTrackerViewModel = viewModel()
+    val viewModel: TimeTrackerViewModel = viewModel { TimeTrackerViewModel(applicationContext) }
     val isAuthenticated by viewModel.isAuthenticated.collectAsState()
     
-    NavHost(navController = navController, startDestination = "login") {
+    NavHost(
+        navController = navController, 
+        startDestination = if (isAuthenticated) "main" else "login"
+    ) {
         composable("login") {
             LoginScreen(
                 onLoginSuccess = {

@@ -16,6 +16,10 @@ class TimeTrackerRepository {
     }
     private var authToken: String? = null
     
+    fun setAuthToken(token: String) {
+        authToken = token
+    }
+    
     suspend fun login(username: String, password: String): Result<Pair<String, User>> {
         return withContext(Dispatchers.IO) {
             try {
@@ -80,10 +84,12 @@ class TimeTrackerRepository {
                     userId = timeEntry.userId,
                     technicianName = timeEntry.technicianName,
                     customerName = timeEntry.customerName,
-                    clockInTime = dateFormatter.format(timeEntry.clockInTime),
+                    clockInTime = timeEntry.clockInTime?.let { dateFormatter.format(it) },
                     clockOutTime = timeEntry.clockOutTime?.let { dateFormatter.format(it) },
                     lunchStartTime = timeEntry.lunchStartTime?.let { dateFormatter.format(it) },
-                    lunchEndTime = timeEntry.lunchEndTime?.let { dateFormatter.format(it) }
+                    lunchEndTime = timeEntry.lunchEndTime?.let { dateFormatter.format(it) },
+                    driveStartTime = timeEntry.driveStartTime?.let { dateFormatter.format(it) },
+                    driveEndTime = timeEntry.driveEndTime?.let { dateFormatter.format(it) }
                 )
                 
                 val response = apiService.createTimeEntry("Bearer $token", request)
@@ -132,10 +138,12 @@ class TimeTrackerRepository {
                     userId = timeEntry.userId,
                     technicianName = timeEntry.technicianName,
                     customerName = timeEntry.customerName,
-                    clockInTime = dateFormatter.format(timeEntry.clockInTime),
+                    clockInTime = timeEntry.clockInTime?.let { dateFormatter.format(it) },
                     clockOutTime = timeEntry.clockOutTime?.let { dateFormatter.format(it) },
                     lunchStartTime = timeEntry.lunchStartTime?.let { dateFormatter.format(it) },
-                    lunchEndTime = timeEntry.lunchEndTime?.let { dateFormatter.format(it) }
+                    lunchEndTime = timeEntry.lunchEndTime?.let { dateFormatter.format(it) },
+                    driveStartTime = timeEntry.driveStartTime?.let { dateFormatter.format(it) },
+                    driveEndTime = timeEntry.driveEndTime?.let { dateFormatter.format(it) }
                 )
                 
                 val response = apiService.updateTimeEntry("Bearer $token", request)
@@ -177,10 +185,12 @@ class TimeTrackerRepository {
             userId = response.userId,
             technicianName = response.technicianName,
             customerName = response.customerName,
-            clockInTime = dateFormatter.parse(response.clockInTime) ?: Date(),
+            clockInTime = response.clockInTime?.let { dateFormatter.parse(it) },
             clockOutTime = response.clockOutTime?.let { dateFormatter.parse(it) },
             lunchStartTime = response.lunchStartTime?.let { dateFormatter.parse(it) },
             lunchEndTime = response.lunchEndTime?.let { dateFormatter.parse(it) },
+            driveStartTime = response.driveStartTime?.let { dateFormatter.parse(it) },
+            driveEndTime = response.driveEndTime?.let { dateFormatter.parse(it) },
             serverId = response.id,
             isSynced = true,
             needsSync = false
