@@ -230,53 +230,70 @@ module.exports = async function handler(req, res) {
       if (id) {
         console.log('Attempting to update existing entry with ID:', id);
         
-        // Build the WHERE clause based on user role
-        let whereClause;
-        if (userRole === 'admin') {
-          // Admins can update any entry
-          whereClause = sql`WHERE id = ${id}`;
-        } else {
-          // Regular users can only update their own entries
-          whereClause = sql`WHERE id = ${id} AND user_id = ${userId}`;
-        }
-        
-        const { rows: updateRows } = await sql`
-          UPDATE time_entries 
-          SET 
-            user_id = ${targetUserId},
-            technician_name = ${technicianName},
-            customer_name = ${customerName}, 
-            clock_in_time = ${clockInTime},
-            clock_out_time = ${clockOutTime},
-            lunch_start_time = ${lunchStartTime},
-            lunch_end_time = ${lunchEndTime},
-            drive_start_time = ${driveStartTime},
-            drive_end_time = ${driveEndTime},
-            updated_at = NOW()
-          ${whereClause}
-          RETURNING *
+        // First, check if the entry exists and get its current user_id
+        const { rows: existingRows } = await sql`
+          SELECT user_id FROM time_entries WHERE id = ${id}
         `;
-
-        if (updateRows.length > 0) {
-          console.log('Successfully updated time entry:', updateRows[0]);
-          
-          // Format the response to match iOS expectations
-          const formattedResponse = {
-            id: updateRows[0].id,
-            userId: updateRows[0].user_id,
-            technicianName: updateRows[0].technician_name,
-            customerName: updateRows[0].customer_name,
-            clockInTime: updateRows[0].clock_in_time,
-            clockOutTime: updateRows[0].clock_out_time,
-            lunchStartTime: updateRows[0].lunch_start_time,
-            lunchEndTime: updateRows[0].lunch_end_time,
-            driveStartTime: updateRows[0].drive_start_time,
-            driveEndTime: updateRows[0].drive_end_time
-          };
-          
-          return res.status(200).json(formattedResponse);
+        
+        if (existingRows.length === 0) {
+          console.log('Entry with ID not found, creating new entry');
         } else {
-          console.log('Entry with ID not found or user mismatch, creating new entry');
+          const existingUserId = existingRows[0].user_id;
+          console.log('Found existing entry with user_id:', existingUserId);
+          
+          // Check if user can update this entry
+          const canUpdate = userRole === 'admin' || existingUserId === userId;
+          
+          if (!canUpdate) {
+            console.log('User not authorized to update this entry');
+            return res.status(403).json({
+              error: 'Not authorized to update this entry',
+              details: 'Entry belongs to different user',
+              timestamp: new Date().toISOString()
+            });
+          }
+          
+          // Build the WHERE clause - just check the ID since we've already verified ownership
+          const whereClause = sql`WHERE id = ${id}`;
+          
+          const { rows: updateRows } = await sql`
+            UPDATE time_entries 
+            SET 
+              user_id = ${targetUserId},
+              technician_name = ${technicianName},
+              customer_name = ${customerName}, 
+              clock_in_time = ${clockInTime},
+              clock_out_time = ${clockOutTime},
+              lunch_start_time = ${lunchStartTime},
+              lunch_end_time = ${lunchEndTime},
+              drive_start_time = ${driveStartTime},
+              drive_end_time = ${driveEndTime},
+              updated_at = NOW()
+            ${whereClause}
+            RETURNING *
+          `;
+
+          if (updateRows.length > 0) {
+            console.log('Successfully updated time entry:', updateRows[0]);
+            
+            // Format the response to match iOS expectations
+            const formattedResponse = {
+              id: updateRows[0].id,
+              userId: updateRows[0].user_id,
+              technicianName: updateRows[0].technician_name,
+              customerName: updateRows[0].customer_name,
+              clockInTime: updateRows[0].clock_in_time,
+              clockOutTime: updateRows[0].clock_out_time,
+              lunchStartTime: updateRows[0].lunch_start_time,
+              lunchEndTime: updateRows[0].lunch_end_time,
+              driveStartTime: updateRows[0].drive_start_time,
+              driveEndTime: updateRows[0].drive_end_time
+            };
+            
+            return res.status(200).json(formattedResponse);
+          } else {
+            console.log('Update failed, creating new entry');
+          }
         }
       }
 
