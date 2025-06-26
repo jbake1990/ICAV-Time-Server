@@ -27,6 +27,18 @@ async function verifyUserSession(authHeader) {
 module.exports = async function handler(req, res) {
   console.log('Time entries API called with method:', req.method);
   
+  // Add a simple debug endpoint for testing
+  if (req.method === 'GET' && req.query.debug === 'true') {
+    console.log('Debug endpoint called');
+    return res.status(200).json({
+      message: 'Debug endpoint working',
+      timestamp: new Date().toISOString(),
+      headers: req.headers,
+      method: req.method,
+      url: req.url
+    });
+  }
+  
   if (req.method === 'GET') {
     try {
       console.log('Attempting to fetch time entries from database...');
@@ -95,43 +107,65 @@ module.exports = async function handler(req, res) {
 
       console.log('Successfully fetched', rows.length, 'time entries');
 
-      // Format the data to match the frontend expectations
-      const formattedRows = rows.map(row => ({
-        id: row.id,
-        userId: row.user_id,
-        technicianName: row.technician_name,
-        customerName: row.customer_name,
-        clockInTime: row.clock_in_time ? new Date(row.clock_in_time).toISOString() : undefined,
-        clockOutTime: row.clock_out_time ? new Date(row.clock_out_time).toISOString() : undefined,
-        lunchStartTime: row.lunch_start_time ? new Date(row.lunch_start_time).toISOString() : undefined,
-        lunchEndTime: row.lunch_end_time ? new Date(row.lunch_end_time).toISOString() : undefined,
-        driveStartTime: row.drive_start_time ? new Date(row.drive_start_time).toISOString() : undefined,
-        driveEndTime: row.drive_end_time ? new Date(row.drive_end_time).toISOString() : undefined,
-        isActive: !row.clock_out_time && (row.clock_in_time || row.drive_start_time),
-        isOnLunch: row.lunch_start_time && !row.lunch_end_time,
-        isDriving: row.drive_start_time && !row.drive_end_time,
-        duration: row.clock_out_time && row.clock_in_time ? 
-          new Date(row.clock_out_time).getTime() - new Date(row.clock_in_time).getTime() : 
-          undefined,
-        formattedDuration: row.clock_out_time && row.clock_in_time ? 
-          formatDuration(new Date(row.clock_out_time).getTime() - new Date(row.clock_in_time).getTime()) : 
-          undefined,
-        lunchDuration: row.lunch_start_time && row.lunch_end_time ? 
-          new Date(row.lunch_end_time).getTime() - new Date(row.lunch_start_time).getTime() : 
-          undefined,
-        formattedLunchDuration: row.lunch_start_time && row.lunch_end_time ? 
-          formatDuration(new Date(row.lunch_end_time).getTime() - new Date(row.lunch_start_time).getTime()) : 
-          undefined,
-        driveDuration: row.drive_start_time && row.drive_end_time ? 
-          new Date(row.drive_end_time).getTime() - new Date(row.drive_start_time).getTime() : 
-          undefined,
-        formattedDriveDuration: row.drive_start_time && row.drive_end_time ? 
-          formatDuration(new Date(row.drive_end_time).getTime() - new Date(row.drive_start_time).getTime()) : 
-          undefined
-      }));
-
-      console.log('Returning formatted data for', formattedRows.length, 'entries');
-      res.status(200).json(formattedRows);
+      // Check if this is a web request (includes computed fields) or mobile request (basic fields only)
+      const isWebRequest = req.query.format === 'web' || req.headers['user-agent']?.includes('Mozilla');
+      
+      if (isWebRequest) {
+        // Format the data for web app with computed fields
+        const formattedRows = rows.map(row => ({
+          id: row.id,
+          userId: row.user_id,
+          technicianName: row.technician_name,
+          customerName: row.customer_name,
+          clockInTime: row.clock_in_time ? new Date(row.clock_in_time).toISOString() : undefined,
+          clockOutTime: row.clock_out_time ? new Date(row.clock_out_time).toISOString() : undefined,
+          lunchStartTime: row.lunch_start_time ? new Date(row.lunch_start_time).toISOString() : undefined,
+          lunchEndTime: row.lunch_end_time ? new Date(row.lunch_end_time).toISOString() : undefined,
+          driveStartTime: row.drive_start_time ? new Date(row.drive_start_time).toISOString() : undefined,
+          driveEndTime: row.drive_end_time ? new Date(row.drive_end_time).toISOString() : undefined,
+          isActive: !row.clock_out_time && (row.clock_in_time || row.drive_start_time),
+          isOnLunch: row.lunch_start_time && !row.lunch_end_time,
+          isDriving: row.drive_start_time && !row.drive_end_time,
+          duration: row.clock_out_time && row.clock_in_time ? 
+            new Date(row.clock_out_time).getTime() - new Date(row.clock_in_time).getTime() : 
+            undefined,
+          formattedDuration: row.clock_out_time && row.clock_in_time ? 
+            formatDuration(new Date(row.clock_out_time).getTime() - new Date(row.clock_in_time).getTime()) : 
+            undefined,
+          lunchDuration: row.lunch_start_time && row.lunch_end_time ? 
+            new Date(row.lunch_end_time).getTime() - new Date(row.lunch_start_time).getTime() : 
+            undefined,
+          formattedLunchDuration: row.lunch_start_time && row.lunch_end_time ? 
+            formatDuration(new Date(row.lunch_end_time).getTime() - new Date(row.lunch_start_time).getTime()) : 
+            undefined,
+          driveDuration: row.drive_start_time && row.drive_end_time ? 
+            new Date(row.drive_end_time).getTime() - new Date(row.drive_start_time).getTime() : 
+            undefined,
+          formattedDriveDuration: row.drive_start_time && row.drive_end_time ? 
+            formatDuration(new Date(row.drive_end_time).getTime() - new Date(row.drive_start_time).getTime()) : 
+            undefined
+        }));
+        
+        console.log('Returning web-formatted data for', formattedRows.length, 'entries');
+        res.status(200).json(formattedRows);
+      } else {
+        // Format the data for mobile apps (basic TimeEntryResponse format)
+        const formattedRows = rows.map(row => ({
+          id: row.id,
+          userId: row.user_id,
+          technicianName: row.technician_name,
+          customerName: row.customer_name,
+          clockInTime: row.clock_in_time ? new Date(row.clock_in_time).toISOString() : undefined,
+          clockOutTime: row.clock_out_time ? new Date(row.clock_out_time).toISOString() : undefined,
+          lunchStartTime: row.lunch_start_time ? new Date(row.lunch_start_time).toISOString() : undefined,
+          lunchEndTime: row.lunch_end_time ? new Date(row.lunch_end_time).toISOString() : undefined,
+          driveStartTime: row.drive_start_time ? new Date(row.drive_start_time).toISOString() : undefined,
+          driveEndTime: row.drive_end_time ? new Date(row.drive_end_time).toISOString() : undefined
+        }));
+        
+        console.log('Returning mobile-formatted data for', formattedRows.length, 'entries');
+        res.status(200).json(formattedRows);
+      }
     } catch (error) {
       console.error('Error fetching time entries:');
       console.error('Error message:', error.message);
