@@ -36,7 +36,7 @@ function AppContent() {
         // Convert API data to frontend format
         const formattedEntries: TimeEntry[] = apiEntries.map(entry => ({
           ...entry,
-          clockInTime: new Date(entry.clockInTime),
+          clockInTime: entry.clockInTime ? new Date(entry.clockInTime) : undefined,
           clockOutTime: entry.clockOutTime ? new Date(entry.clockOutTime) : undefined,
           lunchStartTime: entry.lunchStartTime ? new Date(entry.lunchStartTime) : undefined,
           lunchEndTime: entry.lunchEndTime ? new Date(entry.lunchEndTime) : undefined,
@@ -115,12 +115,18 @@ function AppContent() {
 
     if (filters.dateRange) {
       filtered = filtered.filter(entry => {
-        const entryDate = entry.clockInTime;
+        const entryDate = entry.clockInTime || entry.driveStartTime;
+        if (!entryDate) return false;
         return entryDate >= filters.dateRange!.start && entryDate <= filters.dateRange!.end;
       });
     }
 
-    return filtered.sort((a, b) => b.clockInTime.getTime() - a.clockInTime.getTime());
+    return filtered.sort((a, b) => {
+      const aDate = a.clockInTime || a.driveStartTime;
+      const bDate = b.clockInTime || b.driveStartTime;
+      if (!aDate || !bDate) return 0;
+      return bDate.getTime() - aDate.getTime();
+    });
   }, [filters, timeEntries]);
 
   // Calculate dashboard stats from real data
@@ -130,7 +136,10 @@ function AppContent() {
     const totalHours = timeEntries
       .filter(entry => entry.duration)
       .reduce((sum, entry) => sum + (entry.duration || 0), 0) / (1000 * 60 * 60);
-    const averageHoursPerDay = totalHours / Math.max(1, new Set(timeEntries.map(e => e.clockInTime.toDateString())).size);
+    const averageHoursPerDay = totalHours / Math.max(1, new Set(timeEntries.map(e => {
+      const date = e.clockInTime || e.driveStartTime;
+      return date ? date.toDateString() : 'unknown';
+    })).size);
     const techniciansWorking = new Set(timeEntries.filter(entry => entry.isActive).map(entry => entry.userId)).size;
 
     return {
@@ -157,7 +166,7 @@ function AppContent() {
   const groupedEntries = useMemo(() => {
     const groups: { [key: string]: TimeEntry[] } = {};
     filteredEntries.forEach(entry => {
-      const dateKey = entry.clockInTime.toDateString();
+      const dateKey = (entry.clockInTime || entry.driveStartTime)?.toDateString() || 'Unknown';
       if (!groups[dateKey]) {
         groups[dateKey] = [];
       }
@@ -185,10 +194,10 @@ function AppContent() {
     ];
 
     const csvData = filteredEntries.map(entry => [
-      formatDate(entry.clockInTime),
+      formatDate(entry.clockInTime || entry.driveStartTime || new Date()),
       entry.technicianName,
       entry.customerName,
-      formatTime(entry.clockInTime),
+      entry.clockInTime ? formatTime(entry.clockInTime) : 'N/A',
       entry.clockOutTime ? formatTime(entry.clockOutTime) : 'N/A',
       entry.driveStartTime ? formatTime(entry.driveStartTime) : 'N/A',
       entry.driveEndTime ? formatTime(entry.driveEndTime) : 'N/A',

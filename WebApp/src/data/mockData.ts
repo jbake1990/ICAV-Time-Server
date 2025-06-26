@@ -167,7 +167,10 @@ export const calculateDashboardStats = (entries: TimeEntry[]): DashboardStats =>
   const totalHours = entries
     .filter(entry => entry.duration)
     .reduce((sum, entry) => sum + (entry.duration || 0), 0) / (1000 * 60 * 60);
-  const averageHoursPerDay = totalHours / Math.max(1, new Set(entries.map(e => e.clockInTime.toDateString())).size);
+  const averageHoursPerDay = totalHours / Math.max(1, new Set(entries.map(e => {
+    const date = e.clockInTime || e.driveStartTime;
+    return date ? date.toDateString() : 'unknown';
+  })).size);
   const techniciansWorking = new Set(entries.filter(entry => entry.isActive).map(entry => entry.userId)).size;
 
   return {
