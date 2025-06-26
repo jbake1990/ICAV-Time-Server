@@ -32,7 +32,11 @@ struct TodayTimestampsView: View {
                     .padding(.vertical, 20)
             } else {
                 LazyVStack(spacing: 8) {
-                    ForEach(entries.sorted(by: { $0.clockInTime < $1.clockInTime })) { entry in
+                    ForEach(entries.sorted(by: { 
+                        let aDate = $0.clockInTime ?? $0.driveStartTime ?? Date.distantPast
+                        let bDate = $1.clockInTime ?? $1.driveStartTime ?? Date.distantPast
+                        return aDate < bDate
+                    })) { entry in
                         TodayTimestampRow(entry: entry)
                     }
                 }
@@ -105,13 +109,15 @@ struct TodayTimestampRow: View {
             }
             
             VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .foregroundColor(.green)
-                        .font(.caption)
-                    Text("Clock In: \(formatTime(entry.clockInTime))")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                if let clockInTime = entry.clockInTime {
+                    HStack {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .foregroundColor(.green)
+                            .font(.caption)
+                        Text("Clock In: \(formatTime(clockInTime))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 
                 if let clockOutTime = entry.clockOutTime {
