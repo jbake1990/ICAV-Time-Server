@@ -39,6 +39,18 @@ module.exports = async function handler(req, res) {
     });
   }
   
+  // Add a test endpoint for iOS debugging
+  if (req.method === 'POST' && req.query.test === 'true') {
+    console.log('Test endpoint called');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    console.log('Request headers:', req.headers);
+    return res.status(200).json({
+      message: 'Test endpoint working',
+      receivedData: req.body,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
   if (req.method === 'GET') {
     try {
       console.log('Attempting to fetch time entries from database...');
@@ -313,6 +325,16 @@ module.exports = async function handler(req, res) {
         driveStartTime,
         driveEndTime
       });
+      
+      // Validate required fields
+      if (!targetUserId || !technicianName || !customerName) {
+        console.error('Missing required fields:', { targetUserId, technicianName, customerName });
+        return res.status(400).json({
+          error: 'Missing required fields',
+          details: 'userId, technicianName, and customerName are required',
+          timestamp: new Date().toISOString()
+        });
+      }
       
       const { rows } = await sql`
         INSERT INTO time_entries (
