@@ -13,10 +13,12 @@ struct APITimeEntry: Codable {
     let userId: String
     let technicianName: String
     let customerName: String
-    let clockInTime: String
+    let clockInTime: String?
     let clockOutTime: String?
     let lunchStartTime: String?
     let lunchEndTime: String?
+    let driveStartTime: String?
+    let driveEndTime: String?
 }
 
 struct APIUser: Codable {
@@ -244,10 +246,12 @@ class APIService: ObservableObject {
             userId: entry.userId,
             technicianName: entry.technicianName,
             customerName: entry.customerName,
-            clockInTime: dateFormatter.string(from: entry.clockInTime),
+            clockInTime: entry.clockInTime.map { dateFormatter.string(from: $0) },
             clockOutTime: entry.clockOutTime.map { dateFormatter.string(from: $0) },
             lunchStartTime: entry.lunchStartTime.map { dateFormatter.string(from: $0) },
-            lunchEndTime: entry.lunchEndTime.map { dateFormatter.string(from: $0) }
+            lunchEndTime: entry.lunchEndTime.map { dateFormatter.string(from: $0) },
+            driveStartTime: entry.driveStartTime.map { dateFormatter.string(from: $0) },
+            driveEndTime: entry.driveEndTime.map { dateFormatter.string(from: $0) }
         )
         
         var request = URLRequest(url: url)
@@ -295,30 +299,65 @@ class APIService: ObservableObject {
     
     // MARK: - Utility Methods
     func convertToTimeEntry(_ apiEntry: APITimeEntry) -> TimeEntry? {
-        guard let clockInDate = dateFormatter.date(from: apiEntry.clockInTime) else {
-            return nil
+        // Handle optional clockInTime from API
+        let clockInDate: Date?
+        if let clockInString = apiEntry.clockInTime {
+            clockInDate = dateFormatter.date(from: clockInString)
+        } else {
+            clockInDate = nil
         }
         
-        var timeEntry = TimeEntry(
-            userId: apiEntry.userId,
-            technicianName: apiEntry.technicianName,
-            customerName: apiEntry.customerName,
-            clockInTime: clockInDate
-        )
-        
-        if let clockOutString = apiEntry.clockOutTime {
-            timeEntry.clockOutTime = dateFormatter.date(from: clockOutString)
+        // If we have a clockInTime, use the regular initializer
+        if let clockInDate = clockInDate {
+            var timeEntry = TimeEntry(
+                userId: apiEntry.userId,
+                technicianName: apiEntry.technicianName,
+                customerName: apiEntry.customerName,
+                clockInTime: clockInDate
+            )
+            
+            if let clockOutString = apiEntry.clockOutTime {
+                timeEntry.clockOutTime = dateFormatter.date(from: clockOutString)
+            }
+            
+            if let lunchStartString = apiEntry.lunchStartTime {
+                timeEntry.lunchStartTime = dateFormatter.date(from: lunchStartString)
+            }
+            
+            if let lunchEndString = apiEntry.lunchEndTime {
+                timeEntry.lunchEndTime = dateFormatter.date(from: lunchEndString)
+            }
+            
+            if let driveStartString = apiEntry.driveStartTime {
+                timeEntry.driveStartTime = dateFormatter.date(from: driveStartString)
+            }
+            
+            if let driveEndString = apiEntry.driveEndTime {
+                timeEntry.driveEndTime = dateFormatter.date(from: driveEndString)
+            }
+            
+            return timeEntry
+        } else {
+            // If no clockInTime, this might be a driving-only entry
+            // We need at least a driveStartTime to create a valid entry
+            guard let driveStartString = apiEntry.driveStartTime,
+                  let driveStartDate = dateFormatter.date(from: driveStartString) else {
+                return nil
+            }
+            
+            var timeEntry = TimeEntry(
+                userId: apiEntry.userId,
+                technicianName: apiEntry.technicianName,
+                customerName: apiEntry.customerName,
+                driveStartTime: driveStartDate
+            )
+            
+            if let driveEndString = apiEntry.driveEndTime {
+                timeEntry.driveEndTime = dateFormatter.date(from: driveEndString)
+            }
+            
+            return timeEntry
         }
-        
-        if let lunchStartString = apiEntry.lunchStartTime {
-            timeEntry.lunchStartTime = dateFormatter.date(from: lunchStartString)
-        }
-        
-        if let lunchEndString = apiEntry.lunchEndTime {
-            timeEntry.lunchEndTime = dateFormatter.date(from: lunchEndString)
-        }
-        
-        return timeEntry
     }
     
     func convertToUser(_ apiUser: APIUser) -> User {
