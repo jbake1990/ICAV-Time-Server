@@ -273,6 +273,9 @@ module.exports = async function handler(req, res) {
             RETURNING *
           `;
 
+          console.log('Update query executed, rows affected:', updateRows.length);
+          console.log('Update query result:', updateRows);
+
           if (updateRows.length > 0) {
             console.log('Successfully updated time entry:', updateRows[0]);
             
@@ -290,9 +293,10 @@ module.exports = async function handler(req, res) {
               driveEndTime: updateRows[0].drive_end_time
             };
             
+            console.log('Sending formatted response:', formattedResponse);
             return res.status(200).json(formattedResponse);
           } else {
-            console.log('Update failed, creating new entry');
+            console.log('Update failed - no rows affected, creating new entry');
           }
         }
       }
@@ -357,6 +361,13 @@ module.exports = async function handler(req, res) {
       console.error('Error creating/updating time entry:');
       console.error('Error message:', error.message);
       console.error('Error stack:', error.stack);
+      console.error('Error details:', error);
+      console.error('Request body that caused error:', JSON.stringify(req.body, null, 2));
+      console.error('User session that caused error:', {
+        userId: userSession?.user_id,
+        role: userSession?.role,
+        username: userSession?.username
+      });
       
       if (error.message.includes('No valid authorization header') || error.message.includes('Invalid or expired session')) {
         res.status(401).json({ 
