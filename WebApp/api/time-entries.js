@@ -31,32 +31,61 @@ module.exports = async function handler(req, res) {
     try {
       console.log('Attempting to fetch time entries from database...');
       
-      // Verify user session and get user ID
+      // Verify user session and get user ID and role
       const userSession = await verifyUserSession(req.headers.authorization);
       const userId = userSession.user_id;
+      const userRole = userSession.role;
       
-      console.log('Fetching time entries for user ID:', userId);
+      console.log('Fetching time entries for user ID:', userId, 'with role:', userRole);
       
-      const { rows } = await sql`
-        SELECT 
-          id,
-          user_id,
-          technician_name,
-          customer_name,
-          clock_in_time,
-          clock_out_time,
-          lunch_start_time,
-          lunch_end_time,
-          drive_start_time,
-          drive_end_time,
-          created_at,
-          updated_at
-        FROM time_entries 
-        WHERE user_id = ${userId}
-        ORDER BY clock_in_time DESC
-      `;
+      // Build the query based on user role
+      let query;
+      if (userRole === 'admin') {
+        // Admins can see all time entries
+        query = sql`
+          SELECT 
+            id,
+            user_id,
+            technician_name,
+            customer_name,
+            clock_in_time,
+            clock_out_time,
+            lunch_start_time,
+            lunch_end_time,
+            drive_start_time,
+            drive_end_time,
+            created_at,
+            updated_at
+          FROM time_entries 
+          ORDER BY clock_in_time DESC
+        `;
+        console.log('Admin user - fetching all time entries');
+      } else {
+        // Regular users only see their own entries
+        query = sql`
+          SELECT 
+            id,
+            user_id,
+            technician_name,
+            customer_name,
+            clock_in_time,
+            clock_out_time,
+            lunch_start_time,
+            lunch_end_time,
+            drive_start_time,
+            drive_end_time,
+            created_at,
+            updated_at
+          FROM time_entries 
+          WHERE user_id = ${userId}
+          ORDER BY clock_in_time DESC
+        `;
+        console.log('Regular user - fetching only user entries');
+      }
+      
+      const { rows } = await query;
 
-      console.log('Successfully fetched', rows.length, 'time entries for user');
+      console.log('Successfully fetched', rows.length, 'time entries');
 
       // Format the data to match the frontend expectations
       const formattedRows = rows.map(row => ({
@@ -119,9 +148,10 @@ module.exports = async function handler(req, res) {
     try {
       console.log('Creating new time entry with data:', req.body);
       
-      // Verify user session and get user ID
+      // Verify user session and get user ID and role
       const userSession = await verifyUserSession(req.headers.authorization);
       const userId = userSession.user_id;
+      const userRole = userSession.role;
       
       console.log('Request body details:', {
         id: req.body.id,
@@ -138,14 +168,30 @@ module.exports = async function handler(req, res) {
       
       const { id, technicianName, customerName, clockInTime, clockOutTime, lunchStartTime, lunchEndTime, driveStartTime, driveEndTime } = req.body;
 
+      // Determine the target user ID for the entry
+      // Admins can specify any user ID, regular users can only use their own
+      const targetUserId = userRole === 'admin' ? (req.body.userId || userId) : userId;
+      
+      console.log('Target user ID for entry:', targetUserId, '(requested by user:', userId, 'with role:', userRole, ')');
+
       // If an ID is provided, try to update existing entry first
       if (id) {
         console.log('Attempting to update existing entry with ID:', id);
         
+        // Build the WHERE clause based on user role
+        let whereClause;
+        if (userRole === 'admin') {
+          // Admins can update any entry
+          whereClause = sql`WHERE id = ${id}`;
+        } else {
+          // Regular users can only update their own entries
+          whereClause = sql`WHERE id = ${id} AND user_id = ${userId}`;
+        }
+        
         const { rows: updateRows } = await sql`
           UPDATE time_entries 
           SET 
-            user_id = ${userId},
+            user_id = ${targetUserId},
             technician_name = ${technicianName},
             customer_name = ${customerName}, 
             clock_in_time = ${clockInTime},
@@ -155,7 +201,7 @@ module.exports = async function handler(req, res) {
             drive_start_time = ${driveStartTime},
             drive_end_time = ${driveEndTime},
             updated_at = NOW()
-          WHERE id = ${id} AND user_id = ${userId}
+          ${whereClause}
           RETURNING *
         `;
 
@@ -184,7 +230,7 @@ module.exports = async function handler(req, res) {
 
       // Create new entry (either no ID provided or ID not found)
       console.log('Attempting to create new entry with values:', {
-        userId, 
+        targetUserId, 
         technicianName, 
         customerName, 
         clockInTime, 
@@ -208,7 +254,7 @@ module.exports = async function handler(req, res) {
           drive_end_time
         ) 
         VALUES (
-          ${userId}, 
+          ${targetUserId}, 
           ${technicianName}, 
           ${customerName}, 
           ${clockInTime}, 
