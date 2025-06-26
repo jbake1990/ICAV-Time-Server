@@ -266,8 +266,6 @@ module.exports = async function handler(req, res) {
           }
           
           // Build the WHERE clause - just check the ID since we've already verified ownership
-          const whereClause = sql`WHERE id = ${id}`;
-          
           const { rows: updateRows } = await sql`
             UPDATE time_entries 
             SET 
@@ -281,7 +279,7 @@ module.exports = async function handler(req, res) {
               drive_start_time = ${driveStartTime},
               drive_end_time = ${driveEndTime},
               updated_at = NOW()
-            ${whereClause}
+            WHERE id = ${id}
             RETURNING *
           `;
 
