@@ -48,6 +48,11 @@ function AppContent() {
         setError(null);
       } catch (err) {
         console.error('Failed to load time entries:', err);
+        console.error('Error details:', {
+          message: err instanceof Error ? err.message : 'Unknown error',
+          stack: err instanceof Error ? err.stack : undefined,
+          timestamp: new Date().toISOString()
+        });
         setError('Failed to load time entries. Using sample data.');
         // Fallback to mock data if API fails
         const { mockTimeEntries } = await import('./data/mockData');
