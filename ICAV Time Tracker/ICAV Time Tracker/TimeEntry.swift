@@ -12,7 +12,7 @@ struct TimeEntry: Identifiable, Codable {
     let userId: String
     let technicianName: String
     let customerName: String
-    let clockInTime: Date
+    var clockInTime: Date
     var clockOutTime: Date?
     var lunchStartTime: Date?
     var lunchEndTime: Date?
@@ -37,6 +37,20 @@ struct TimeEntry: Identifiable, Codable {
         self.lunchEndTime = lunchEndTime
         self.driveStartTime = driveStartTime
         self.driveEndTime = driveEndTime
+    }
+    
+    // Initializer for driving entries (without clockInTime)
+    init(userId: String, technicianName: String, customerName: String, driveStartTime: Date) {
+        self.id = UUID()
+        self.userId = userId
+        self.technicianName = technicianName
+        self.customerName = customerName
+        self.clockInTime = Date.distantPast // Placeholder that will be updated later
+        self.clockOutTime = nil
+        self.lunchStartTime = nil
+        self.lunchEndTime = nil
+        self.driveStartTime = driveStartTime
+        self.driveEndTime = nil
     }
     
     var isActive: Bool {
