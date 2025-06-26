@@ -20,12 +20,17 @@ export const mockTimeEntries: TimeEntry[] = [
     clockOutTime: new Date('2024-01-15T17:00:00'),
     lunchStartTime: new Date('2024-01-15T12:00:00'),
     lunchEndTime: new Date('2024-01-15T13:00:00'),
+    driveStartTime: new Date('2024-01-15T07:30:00'),
+    driveEndTime: new Date('2024-01-15T08:00:00'),
     isActive: false,
     isOnLunch: false,
+    isDriving: false,
     duration: 32400000, // 9 hours in milliseconds
     formattedDuration: '09:00',
     lunchDuration: 3600000, // 1 hour in milliseconds
     formattedLunchDuration: '01:00',
+    driveDuration: 1800000, // 30 minutes in milliseconds
+    formattedDriveDuration: '00:30',
   },
   {
     id: '2',
@@ -36,12 +41,17 @@ export const mockTimeEntries: TimeEntry[] = [
     clockOutTime: undefined,
     lunchStartTime: new Date('2024-01-15T12:30:00'),
     lunchEndTime: undefined,
+    driveStartTime: new Date('2024-01-15T07:00:00'),
+    driveEndTime: new Date('2024-01-15T07:30:00'),
     isActive: true,
     isOnLunch: true,
+    isDriving: false,
     duration: undefined,
     formattedDuration: undefined,
     lunchDuration: undefined,
     formattedLunchDuration: undefined,
+    driveDuration: 1800000, // 30 minutes in milliseconds
+    formattedDriveDuration: '00:30',
   },
   {
     id: '3',
@@ -52,12 +62,17 @@ export const mockTimeEntries: TimeEntry[] = [
     clockOutTime: undefined,
     lunchStartTime: undefined,
     lunchEndTime: undefined,
+    driveStartTime: new Date('2024-01-15T08:15:00'),
+    driveEndTime: new Date('2024-01-15T09:00:00'),
     isActive: true,
     isOnLunch: false,
+    isDriving: false,
     duration: undefined,
     formattedDuration: undefined,
     lunchDuration: undefined,
     formattedLunchDuration: undefined,
+    driveDuration: 2700000, // 45 minutes in milliseconds
+    formattedDriveDuration: '00:45',
   },
   {
     id: '4',
@@ -68,12 +83,17 @@ export const mockTimeEntries: TimeEntry[] = [
     clockOutTime: new Date('2024-01-14T16:45:00'),
     lunchStartTime: new Date('2024-01-14T12:00:00'),
     lunchEndTime: new Date('2024-01-14T13:00:00'),
+    driveStartTime: new Date('2024-01-14T07:45:00'),
+    driveEndTime: new Date('2024-01-14T08:15:00'),
     isActive: false,
     isOnLunch: false,
+    isDriving: false,
     duration: 30600000, // 8.5 hours in milliseconds
     formattedDuration: '08:30',
     lunchDuration: 3600000, // 1 hour in milliseconds
     formattedLunchDuration: '01:00',
+    driveDuration: 1800000, // 30 minutes in milliseconds
+    formattedDriveDuration: '00:30',
   },
   {
     id: '5',
@@ -84,12 +104,17 @@ export const mockTimeEntries: TimeEntry[] = [
     clockOutTime: new Date('2024-01-15T14:30:00'),
     lunchStartTime: new Date('2024-01-15T10:30:00'),
     lunchEndTime: new Date('2024-01-15T11:00:00'),
+    driveStartTime: new Date('2024-01-15T05:15:00'),
+    driveEndTime: new Date('2024-01-15T06:00:00'),
     isActive: false,
     isOnLunch: false,
+    isDriving: false,
     duration: 30600000, // 8.5 hours in milliseconds
     formattedDuration: '08:30',
     lunchDuration: 1800000, // 30 minutes in milliseconds
     formattedLunchDuration: '00:30',
+    driveDuration: 2700000, // 45 minutes in milliseconds
+    formattedDriveDuration: '00:45',
   },
   {
     id: '6',
@@ -100,12 +125,17 @@ export const mockTimeEntries: TimeEntry[] = [
     clockOutTime: new Date('2024-01-14T17:00:00'),
     lunchStartTime: new Date('2024-01-14T12:00:00'),
     lunchEndTime: new Date('2024-01-14T13:00:00'),
+    driveStartTime: new Date('2024-01-14T07:30:00'),
+    driveEndTime: new Date('2024-01-14T08:00:00'),
     isActive: false,
     isOnLunch: false,
+    isDriving: false,
     duration: 32400000, // 9 hours in milliseconds
     formattedDuration: '09:00',
     lunchDuration: 3600000, // 1 hour in milliseconds
     formattedLunchDuration: '01:00',
+    driveDuration: 1800000, // 30 minutes in milliseconds
+    formattedDriveDuration: '00:30',
   },
   {
     id: '7',
@@ -116,12 +146,17 @@ export const mockTimeEntries: TimeEntry[] = [
     clockOutTime: new Date('2024-01-14T16:30:00'),
     lunchStartTime: new Date('2024-01-14T12:00:00'),
     lunchEndTime: new Date('2024-01-14T13:00:00'),
+    driveStartTime: new Date('2024-01-14T07:00:00'),
+    driveEndTime: new Date('2024-01-14T07:30:00'),
     isActive: false,
     isOnLunch: false,
+    isDriving: false,
     duration: 32400000, // 9 hours in milliseconds
     formattedDuration: '09:00',
     lunchDuration: 3600000, // 1 hour in milliseconds
     formattedLunchDuration: '01:00',
+    driveDuration: 1800000, // 30 minutes in milliseconds
+    formattedDriveDuration: '00:30',
   },
 ];
 
