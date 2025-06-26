@@ -36,7 +36,16 @@ struct TimeEntryRowView: View {
                 Spacer()
                 
                 if entry.isActive {
-                    if entry.isOnLunch {
+                    if entry.isDriving {
+                        Text("DRIVING")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.blue)
+                            .cornerRadius(8)
+                    } else if entry.isOnLunch {
                         Text("LUNCH")
                             .font(.caption)
                             .fontWeight(.bold)
@@ -65,14 +74,34 @@ struct TimeEntryRowView: View {
             
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Clock In: \(formatDate(entry.clockInTime))")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    if let clockInTime = entry.clockInTime {
+                        Text("Clock In: \(formatDate(clockInTime))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                     
                     if let clockOutTime = entry.clockOutTime {
                         Text("Clock Out: \(formatDate(clockOutTime))")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                    }
+                    
+                    if let driveStart = entry.driveStartTime {
+                        Text("Drive Start: \(formatDate(driveStart))")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                    }
+                    
+                    if let driveEnd = entry.driveEndTime {
+                        Text("Drive End: \(formatDate(driveEnd))")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                    }
+                    
+                    if let driveDuration = entry.formattedDriveDuration {
+                        Text("Drive Duration: \(driveDuration)")
+                            .font(.caption)
+                            .foregroundColor(.blue)
                     }
                     
                     if let lunchStart = entry.lunchStartTime {
