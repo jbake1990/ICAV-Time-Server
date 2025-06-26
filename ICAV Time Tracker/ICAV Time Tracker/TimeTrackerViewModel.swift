@@ -313,8 +313,12 @@ class TimeTrackerViewModel: ObservableObject {
     
     func performSync() async {
         guard let token = authManager.getCurrentToken() else {
+            print("❌ No auth token available for sync")
             return
         }
+        
+        print("🔄 Starting sync process")
+        print("🔑 Token available: \(!token.isEmpty)")
         
         await MainActor.run {
             self.isSyncing = true
@@ -322,15 +326,18 @@ class TimeTrackerViewModel: ObservableObject {
         }
         
         // First, sync pending local entries to server
+        print("📤 Syncing pending entries to server...")
         await syncPendingEntries(token: token)
         
         // Then, fetch any new entries from server
+        print("📥 Fetching entries from server...")
         await fetchServerEntries(token: token)
         
         await MainActor.run {
             self.isSyncing = false
             self.syncMessage = "Sync completed"
             self.userDefaults.set(Date(), forKey: self.lastSyncKey)
+            print("✅ Sync completed")
         }
     }
     
@@ -459,6 +466,12 @@ class TimeTrackerViewModel: ObservableObject {
             return
         }
         
+        print("🔄 Manual sync triggered")
+        print("🔐 User authenticated: \(authManager.isAuthenticated)")
+        print("🌐 Online status: \(authManager.isOnline)")
+        print("📊 Total entries: \(timeEntries.count)")
+        print("📤 Pending sync count: \(timeEntries.filter { $0.needsSync }.count)")
+        
         Task {
             await performSync()
         }
@@ -484,6 +497,10 @@ class TimeTrackerViewModel: ObservableObject {
             return
         }
         
+        print("🚗 Starting driving for customer: \(customerName)")
+        print("🔐 User authenticated: \(authManager.isAuthenticated)")
+        print("🌐 Online status: \(authManager.isOnline)")
+        
         var drivingEntry = TimeEntry(
             userId: currentUser.id,
             technicianName: currentUser.displayName,
@@ -494,17 +511,26 @@ class TimeTrackerViewModel: ObservableObject {
         // Mark for sync to show active driving entry in web portal
         if authManager.isOnline {
             drivingEntry.markForSync()
+            print("📤 Entry marked for sync: \(drivingEntry.id)")
+        } else {
+            print("⚠️ Not online, entry not marked for sync")
         }
         
         timeEntries.append(drivingEntry)
         currentStatus = .driving
         saveData()
         
+        print("💾 Data saved locally. Total entries: \(timeEntries.count)")
+        print("📊 Pending sync count: \(timeEntries.filter { $0.needsSync }.count)")
+        
         // Sync immediately to show active driving entry in web portal
         if authManager.isOnline {
             Task {
+                print("🔄 Starting immediate sync for driving entry")
                 await syncEntry(drivingEntry)
             }
+        } else {
+            print("⚠️ Not online, skipping immediate sync")
         }
     }
     
