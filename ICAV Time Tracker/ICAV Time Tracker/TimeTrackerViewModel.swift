@@ -46,6 +46,7 @@ class TimeTrackerViewModel: ObservableObject {
         if case .driving = currentStatus {
             if let drivingEntry = timeEntries.first(where: { $0.isDriving }),
                let index = timeEntries.firstIndex(where: { $0.id == drivingEntry.id }) {
+                timeEntries[index].clockInTime = Date() // Set clock in time when transitioning from driving
                 timeEntries[index].driveEndTime = Date()
                 timeEntries[index].markForSync()
                 currentStatus = .clockedIn(timeEntries[index])
@@ -483,7 +484,6 @@ class TimeTrackerViewModel: ObservableObject {
             userId: currentUser.id,
             technicianName: currentUser.displayName,
             customerName: customerName.trimmingCharacters(in: .whitespacesAndNewlines),
-            clockInTime: Date(),
             driveStartTime: Date()
         )
         

@@ -223,7 +223,7 @@ struct ContentView: View {
                         case .clockedOut:
                             return false
                         case .driving:
-                            return false
+                            return true
                         case .clockedIn:
                             return true
                         case .onLunch:

@@ -110,7 +110,7 @@ fun MainScreen(
                 InputSection(
                     customerName = customerName,
                     onCustomerNameChange = { customerName = it },
-                    isDisabled = clockStatus == ClockStatus.CLOCKED_IN || clockStatus == ClockStatus.ON_LUNCH
+                    isDisabled = clockStatus == ClockStatus.CLOCKED_IN || clockStatus == ClockStatus.ON_LUNCH || clockStatus == ClockStatus.DRIVING
                 )
             }
             

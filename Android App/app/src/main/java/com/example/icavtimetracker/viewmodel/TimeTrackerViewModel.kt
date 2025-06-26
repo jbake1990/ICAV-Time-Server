@@ -96,6 +96,7 @@ class TimeTrackerViewModel : ViewModel() {
             val drivingEntry = _currentEntry.value
             if (drivingEntry != null) {
                 val updatedEntry = drivingEntry.copy(
+                    clockInTime = Date(),
                     driveEndTime = Date(),
                     lastModified = Date()
                 )
@@ -176,7 +177,6 @@ class TimeTrackerViewModel : ViewModel() {
             userId = user.id,
             technicianName = user.displayName,
             customerName = customerName,
-            clockInTime = Date(),
             driveStartTime = Date()
         )
         
