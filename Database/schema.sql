@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS time_entries (
     clock_out_time TIMESTAMPTZ,
     lunch_start_time TIMESTAMPTZ,
     lunch_end_time TIMESTAMPTZ,
+    drive_start_time TIMESTAMPTZ,
+    drive_end_time TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

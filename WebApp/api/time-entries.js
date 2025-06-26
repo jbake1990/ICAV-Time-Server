@@ -17,6 +17,8 @@ module.exports = async function handler(req, res) {
           clock_out_time,
           lunch_start_time,
           lunch_end_time,
+          drive_start_time,
+          drive_end_time,
           created_at,
           updated_at
         FROM time_entries 
@@ -35,8 +37,11 @@ module.exports = async function handler(req, res) {
         clockOutTime: row.clock_out_time ? new Date(row.clock_out_time) : undefined,
         lunchStartTime: row.lunch_start_time ? new Date(row.lunch_start_time) : undefined,
         lunchEndTime: row.lunch_end_time ? new Date(row.lunch_end_time) : undefined,
+        driveStartTime: row.drive_start_time ? new Date(row.drive_start_time) : undefined,
+        driveEndTime: row.drive_end_time ? new Date(row.drive_end_time) : undefined,
         isActive: !row.clock_out_time,
         isOnLunch: row.lunch_start_time && !row.lunch_end_time,
+        isDriving: row.drive_start_time && !row.drive_end_time,
         duration: row.clock_out_time ? 
           new Date(row.clock_out_time).getTime() - new Date(row.clock_in_time).getTime() : 
           undefined,
@@ -48,6 +53,12 @@ module.exports = async function handler(req, res) {
           undefined,
         formattedLunchDuration: row.lunch_start_time && row.lunch_end_time ? 
           formatDuration(new Date(row.lunch_end_time).getTime() - new Date(row.lunch_start_time).getTime()) : 
+          undefined,
+        driveDuration: row.drive_start_time && row.drive_end_time ? 
+          new Date(row.drive_end_time).getTime() - new Date(row.drive_start_time).getTime() : 
+          undefined,
+        formattedDriveDuration: row.drive_start_time && row.drive_end_time ? 
+          formatDuration(new Date(row.drive_end_time).getTime() - new Date(row.drive_start_time).getTime()) : 
           undefined
       }));
 
@@ -69,7 +80,7 @@ module.exports = async function handler(req, res) {
     try {
       console.log('Creating new time entry with data:', req.body);
       
-      const { id, userId, technicianName, customerName, clockInTime, clockOutTime, lunchStartTime, lunchEndTime } = req.body;
+      const { id, userId, technicianName, customerName, clockInTime, clockOutTime, lunchStartTime, lunchEndTime, driveStartTime, driveEndTime } = req.body;
 
       // If an ID is provided, try to update existing entry first
       if (id) {
@@ -85,6 +96,8 @@ module.exports = async function handler(req, res) {
             clock_out_time = ${clockOutTime},
             lunch_start_time = ${lunchStartTime},
             lunch_end_time = ${lunchEndTime},
+            drive_start_time = ${driveStartTime},
+            drive_end_time = ${driveEndTime},
             updated_at = NOW()
           WHERE id = ${id}
           RETURNING *
@@ -102,7 +115,9 @@ module.exports = async function handler(req, res) {
             clockInTime: updateRows[0].clock_in_time,
             clockOutTime: updateRows[0].clock_out_time,
             lunchStartTime: updateRows[0].lunch_start_time,
-            lunchEndTime: updateRows[0].lunch_end_time
+            lunchEndTime: updateRows[0].lunch_end_time,
+            driveStartTime: updateRows[0].drive_start_time,
+            driveEndTime: updateRows[0].drive_end_time
           };
           
           return res.status(200).json(formattedResponse);
@@ -120,7 +135,9 @@ module.exports = async function handler(req, res) {
           clock_in_time, 
           clock_out_time, 
           lunch_start_time, 
-          lunch_end_time
+          lunch_end_time,
+          drive_start_time,
+          drive_end_time
         ) 
         VALUES (
           ${userId}, 
@@ -129,7 +146,9 @@ module.exports = async function handler(req, res) {
           ${clockInTime}, 
           ${clockOutTime}, 
           ${lunchStartTime}, 
-          ${lunchEndTime}
+          ${lunchEndTime},
+          ${driveStartTime},
+          ${driveEndTime}
         )
         RETURNING *
       `;
@@ -145,7 +164,9 @@ module.exports = async function handler(req, res) {
         clockInTime: rows[0].clock_in_time,
         clockOutTime: rows[0].clock_out_time,
         lunchStartTime: rows[0].lunch_start_time,
-        lunchEndTime: rows[0].lunch_end_time
+        lunchEndTime: rows[0].lunch_end_time,
+        driveStartTime: rows[0].drive_start_time,
+        driveEndTime: rows[0].drive_end_time
       };
       
       res.status(201).json(formattedResponse);

@@ -73,6 +73,15 @@ struct TodayTimestampRow: View {
                             .padding(.vertical, 2)
                             .background(Color.orange)
                             .cornerRadius(4)
+                    } else if entry.isDriving {
+                        Text("DRIVING")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.blue)
+                            .cornerRadius(4)
                     } else {
                         Text("ACTIVE")
                             .font(.caption)
@@ -138,12 +147,46 @@ struct TodayTimestampRow: View {
                     }
                 }
                 
+                if let driveStart = entry.driveStartTime {
+                    HStack {
+                        Image(systemName: "car")
+                            .foregroundColor(.blue)
+                            .font(.caption)
+                        Text("Drive Start: \(formatTime(driveStart))")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                    }
+                }
+                
+                if let driveEnd = entry.driveEndTime {
+                    HStack {
+                        Image(systemName: "car.fill")
+                            .foregroundColor(.blue)
+                            .font(.caption)
+                        Text("Drive End: \(formatTime(driveEnd))")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                    }
+                }
+                
                 if let duration = entry.formattedDuration {
                     HStack {
                         Image(systemName: "timer")
                             .foregroundColor(.blue)
                             .font(.caption)
                         Text("Duration: \(duration)")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                            .fontWeight(.medium)
+                    }
+                }
+                
+                if let driveDuration = entry.formattedDriveDuration {
+                    HStack {
+                        Image(systemName: "car")
+                            .foregroundColor(.blue)
+                            .font(.caption)
+                        Text("Drive Time: \(driveDuration)")
                             .font(.caption)
                             .foregroundColor(.blue)
                             .fontWeight(.medium)

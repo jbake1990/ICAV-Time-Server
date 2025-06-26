@@ -42,13 +42,15 @@ export const formatDurationHours = (durationMs: number): string => {
   return hours.toFixed(2);
 };
 
-export const getStatusColor = (isActive: boolean, isOnLunch: boolean): string => {
+export const getStatusColor = (isActive: boolean, isOnLunch: boolean, isDriving: boolean): string => {
+  if (isDriving) return 'text-blue-600 bg-blue-100';
   if (isOnLunch) return 'text-yellow-600 bg-yellow-100';
   if (isActive) return 'text-green-600 bg-green-100';
   return 'text-gray-600 bg-gray-100';
 };
 
-export const getStatusText = (isActive: boolean, isOnLunch: boolean): string => {
+export const getStatusText = (isActive: boolean, isOnLunch: boolean, isDriving: boolean): string => {
+  if (isDriving) return 'Driving';
   if (isOnLunch) return 'On Lunch';
   if (isActive) return 'Active';
   return 'Completed';

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, User, Building, Calendar, Timer } from 'lucide-react';
+import { Clock, User, Building, Calendar, Timer, Car } from 'lucide-react';
 import { TimeEntry } from '../types';
 import { formatTime, formatDate, formatDuration, getStatusColor, getStatusText } from '../utils/timeUtils';
 
@@ -9,8 +9,8 @@ interface TimeEntryCardProps {
 }
 
 const TimeEntryCard: React.FC<TimeEntryCardProps> = ({ entry, onClick }) => {
-  const statusColor = getStatusColor(entry.isActive, entry.isOnLunch);
-  const statusText = getStatusText(entry.isActive, entry.isOnLunch);
+  const statusColor = getStatusColor(entry.isActive, entry.isOnLunch, entry.isDriving);
+  const statusText = getStatusText(entry.isActive, entry.isOnLunch, entry.isDriving);
 
   return (
     <div 
@@ -65,6 +65,32 @@ const TimeEntryCard: React.FC<TimeEntryCardProps> = ({ entry, onClick }) => {
           )}
         </div>
 
+        {entry.driveStartTime && (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex items-center space-x-2">
+              <Car className="w-4 h-4 text-blue-500" />
+              <div>
+                <p className="text-sm text-gray-500">Drive Start</p>
+                <p className="font-medium text-gray-900">
+                  {formatTime(entry.driveStartTime)}
+                </p>
+              </div>
+            </div>
+
+            {entry.driveEndTime && (
+              <div className="flex items-center space-x-2">
+                <Car className="w-4 h-4 text-blue-500" />
+                <div>
+                  <p className="text-sm text-gray-500">Drive End</p>
+                  <p className="font-medium text-gray-900">
+                    {formatTime(entry.driveEndTime)}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {entry.lunchStartTime && (
           <div className="grid grid-cols-2 gap-4">
             <div className="flex items-center space-x-2">
@@ -98,6 +124,18 @@ const TimeEntryCard: React.FC<TimeEntryCardProps> = ({ entry, onClick }) => {
               <p className="text-sm text-gray-500">Total Duration</p>
               <p className="font-semibold text-primary-600">
                 {formatDuration(entry.duration)}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {entry.driveDuration && (
+          <div className="flex items-center space-x-2">
+            <Car className="w-4 h-4 text-blue-500" />
+            <div>
+              <p className="text-sm text-gray-500">Drive Duration</p>
+              <p className="font-medium text-blue-600">
+                {formatDuration(entry.driveDuration)}
               </p>
             </div>
           </div>

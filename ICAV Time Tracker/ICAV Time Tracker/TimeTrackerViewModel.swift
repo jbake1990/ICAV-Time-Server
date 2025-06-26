@@ -42,36 +42,55 @@ class TimeTrackerViewModel: ObservableObject {
             return
         }
         
-        guard !customerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            showAlert("Please enter the customer name")
-            return
-        }
-        
-        var newEntry = TimeEntry(
-            userId: currentUser.id,
-            technicianName: currentUser.displayName,
-            customerName: customerName.trimmingCharacters(in: .whitespacesAndNewlines),
-            clockInTime: Date()
-        )
-        
-        // Mark for sync to show active entry in web portal
-        if authManager.isOnline {
-            newEntry.markForSync()
-        }
-        
-        timeEntries.append(newEntry)
-        currentStatus = .clockedIn(newEntry)
-        saveData()
-        
-        // Clear customer name for next entry
-        customerName = ""
-        
-        // Sync immediately to show active entry in web portal
-        if authManager.isOnline {
-            Task {
-                await syncEntry(newEntry)
-                // Small delay to prevent race conditions
-                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        // If we were driving, end the drive time and continue the same session
+        if case .driving = currentStatus {
+            if let drivingEntry = timeEntries.first(where: { $0.isDriving }),
+               let index = timeEntries.firstIndex(where: { $0.id == drivingEntry.id }) {
+                timeEntries[index].driveEndTime = Date()
+                timeEntries[index].markForSync()
+                currentStatus = .clockedIn(timeEntries[index])
+                saveData()
+                
+                // Sync the updated entry
+                if authManager.isOnline {
+                    Task {
+                        await syncEntry(timeEntries[index])
+                    }
+                }
+            }
+        } else {
+            // Create new entry for new customer session
+            guard !customerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                showAlert("Please enter the customer name")
+                return
+            }
+            
+            var newEntry = TimeEntry(
+                userId: currentUser.id,
+                technicianName: currentUser.displayName,
+                customerName: customerName.trimmingCharacters(in: .whitespacesAndNewlines),
+                clockInTime: Date()
+            )
+            
+            // Mark for sync to show active entry in web portal
+            if authManager.isOnline {
+                newEntry.markForSync()
+            }
+            
+            timeEntries.append(newEntry)
+            currentStatus = .clockedIn(newEntry)
+            saveData()
+            
+            // Clear customer name for next entry
+            customerName = ""
+            
+            // Sync immediately to show active entry in web portal
+            if authManager.isOnline {
+                Task {
+                    await syncEntry(newEntry)
+                    // Small delay to prevent race conditions
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                }
             }
         }
     }
@@ -150,6 +169,9 @@ class TimeTrackerViewModel: ObservableObject {
                 }
             }
             
+        case .driving:
+            showAlert("Cannot start lunch while driving")
+            
         case .onLunch:
             showAlert("Already on lunch break")
         }
@@ -225,6 +247,8 @@ class TimeTrackerViewModel: ObservableObject {
             if let activeEntry = timeEntries.first(where: { $0.isActive && $0.userId == currentUser.id }) {
                 if activeEntry.isOnLunch {
                     currentStatus = .onLunch(activeEntry)
+                } else if activeEntry.isDriving {
+                    currentStatus = .driving
                 } else {
                     currentStatus = .clockedIn(activeEntry)
                 }
@@ -442,5 +466,63 @@ class TimeTrackerViewModel: ObservableObject {
     
     var pendingSyncCount: Int {
         return timeEntries.filter { $0.needsSync }.count
+    }
+    
+    func startDriving() {
+        guard let currentUser = authManager.currentUser else {
+            showAlert("Please log in to use the time tracker")
+            return
+        }
+        
+        guard !customerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            showAlert("Please enter the customer name")
+            return
+        }
+        
+        var drivingEntry = TimeEntry(
+            userId: currentUser.id,
+            technicianName: currentUser.displayName,
+            customerName: customerName.trimmingCharacters(in: .whitespacesAndNewlines),
+            clockInTime: Date(),
+            driveStartTime: Date()
+        )
+        
+        // Mark for sync to show active driving entry in web portal
+        if authManager.isOnline {
+            drivingEntry.markForSync()
+        }
+        
+        timeEntries.append(drivingEntry)
+        currentStatus = .driving
+        saveData()
+        
+        // Sync immediately to show active driving entry in web portal
+        if authManager.isOnline {
+            Task {
+                await syncEntry(drivingEntry)
+            }
+        }
+    }
+    
+    func endDriving() {
+        guard case .driving = currentStatus else {
+            showAlert("No active driving session to end")
+            return
+        }
+        
+        if let drivingEntry = timeEntries.first(where: { $0.isDriving }),
+           let index = timeEntries.firstIndex(where: { $0.id == drivingEntry.id }) {
+            timeEntries[index].driveEndTime = Date()
+            timeEntries[index].markForSync()
+            currentStatus = .clockedOut
+            saveData()
+            
+            // Sync immediately to show driving end in web portal
+            if authManager.isOnline {
+                Task {
+                    await syncEntry(timeEntries[index])
+                }
+            }
+        }
     }
 } 

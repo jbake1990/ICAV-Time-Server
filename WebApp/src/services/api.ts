@@ -28,12 +28,17 @@ export interface ApiTimeEntry {
   clockOutTime?: string;
   lunchStartTime?: string;
   lunchEndTime?: string;
+  driveStartTime?: string;
+  driveEndTime?: string;
   isActive: boolean;
   isOnLunch: boolean;
+  isDriving: boolean;
   duration?: number;
   formattedDuration?: string;
   lunchDuration?: number;
   formattedLunchDuration?: string;
+  driveDuration?: number;
+  formattedDriveDuration?: string;
 }
 
 export interface ApiUser {
@@ -134,6 +139,8 @@ export const api = {
     clockOutTime?: string;
     lunchStartTime?: string;
     lunchEndTime?: string;
+    driveStartTime?: string;
+    driveEndTime?: string;
   }): Promise<ApiTimeEntry> {
     const url = `${API_BASE_URL}/api/time-entries`;
     const response = await fetch(url, {

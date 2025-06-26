@@ -16,6 +16,8 @@ struct TimeEntry: Identifiable, Codable {
     var clockOutTime: Date?
     var lunchStartTime: Date?
     var lunchEndTime: Date?
+    var driveStartTime: Date?
+    var driveEndTime: Date?
     
     // Sync tracking
     var serverId: String? // ID from the server after successful sync
@@ -24,7 +26,7 @@ struct TimeEntry: Identifiable, Codable {
     var lastModified: Date = Date() // When this entry was last modified locally
     
     // Custom initializer to generate UUID
-    init(userId: String, technicianName: String, customerName: String, clockInTime: Date, clockOutTime: Date? = nil, lunchStartTime: Date? = nil, lunchEndTime: Date? = nil) {
+    init(userId: String, technicianName: String, customerName: String, clockInTime: Date, clockOutTime: Date? = nil, lunchStartTime: Date? = nil, lunchEndTime: Date? = nil, driveStartTime: Date? = nil, driveEndTime: Date? = nil) {
         self.id = UUID()
         self.userId = userId
         self.technicianName = technicianName
@@ -33,6 +35,8 @@ struct TimeEntry: Identifiable, Codable {
         self.clockOutTime = clockOutTime
         self.lunchStartTime = lunchStartTime
         self.lunchEndTime = lunchEndTime
+        self.driveStartTime = driveStartTime
+        self.driveEndTime = driveEndTime
     }
     
     var isActive: Bool {
@@ -41,6 +45,10 @@ struct TimeEntry: Identifiable, Codable {
     
     var isOnLunch: Bool {
         return lunchStartTime != nil && lunchEndTime == nil
+    }
+    
+    var isDriving: Bool {
+        return driveStartTime != nil && driveEndTime == nil
     }
     
     var duration: TimeInterval? {
@@ -62,6 +70,18 @@ struct TimeEntry: Identifiable, Codable {
     
     var formattedLunchDuration: String? {
         guard let duration = lunchDuration else { return nil }
+        let hours = Int(duration) / 3600
+        let minutes = Int(duration) % 3600 / 60
+        return String(format: "%02d:%02d", hours, minutes)
+    }
+    
+    var driveDuration: TimeInterval? {
+        guard let driveStart = driveStartTime, let driveEnd = driveEndTime else { return nil }
+        return driveEnd.timeIntervalSince(driveStart)
+    }
+    
+    var formattedDriveDuration: String? {
+        guard let duration = driveDuration else { return nil }
         let hours = Int(duration) / 3600
         let minutes = Int(duration) % 3600 / 60
         return String(format: "%02d:%02d", hours, minutes)
@@ -92,6 +112,7 @@ struct TimeEntry: Identifiable, Codable {
 
 enum ClockStatus {
     case clockedOut
+    case driving
     case clockedIn(TimeEntry)
     case onLunch(TimeEntry)
 } 

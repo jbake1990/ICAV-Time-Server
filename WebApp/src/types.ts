@@ -7,12 +7,17 @@ export interface TimeEntry {
   clockOutTime?: Date;
   lunchStartTime?: Date;
   lunchEndTime?: Date;
+  driveStartTime?: Date;
+  driveEndTime?: Date;
   isActive: boolean;
   isOnLunch: boolean;
+  isDriving: boolean;
   duration?: number;
   formattedDuration?: string;
   lunchDuration?: number;
   formattedLunchDuration?: string;
+  driveDuration?: number;
+  formattedDriveDuration?: string;
 }
 
 export interface User {

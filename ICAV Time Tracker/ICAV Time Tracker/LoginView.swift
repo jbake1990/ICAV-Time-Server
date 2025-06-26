@@ -106,23 +106,6 @@ struct LoginView: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                    
-                    // Test credentials for development
-                    VStack(spacing: 4) {
-                        Text("Test Credentials:")
-                            .font(.caption2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.blue)
-                        
-                        Text("Username: \(authManager.getTestCredentials().username)")
-                            .font(.caption2)
-                            .foregroundColor(.blue)
-                        
-                        Text("Password: \(authManager.getTestCredentials().password)")
-                            .font(.caption2)
-                            .foregroundColor(.blue)
-                    }
-                    .padding(.top, 8)
                 }
                 .padding(.bottom, 30)
             }

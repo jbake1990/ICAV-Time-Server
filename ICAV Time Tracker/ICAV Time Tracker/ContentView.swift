@@ -192,6 +192,17 @@ struct ContentView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+            } else if case .driving = viewModel.currentStatus {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Currently driving to: \(viewModel.customerName)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("Drive started at: \(formatDate(Date()))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding()
@@ -207,7 +218,18 @@ struct ContentView: View {
                 
                 TextField("Enter customer name", text: $viewModel.customerName)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .disabled(viewModel.currentStatus.isActive && !viewModel.currentStatus.isOnLunch)
+                    .disabled({
+                        switch viewModel.currentStatus {
+                        case .clockedOut:
+                            return false
+                        case .driving:
+                            return false
+                        case .clockedIn:
+                            return true
+                        case .onLunch:
+                            return true
+                        }
+                    }())
             }
         }
         .padding()
@@ -215,35 +237,77 @@ struct ContentView: View {
     
     private var clockButtons: some View {
         VStack(spacing: 16) {
-            HStack(spacing: 20) {
-                Button(action: viewModel.clockIn) {
-                    HStack {
-                        Image(systemName: "clock.arrow.circlepath")
-                        Text("Clock In")
+            // Main cycling button (Driving → Clock In → Clock Out)
+            Button(action: {
+                switch viewModel.currentStatus {
+                case .clockedOut:
+                    if !viewModel.customerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        viewModel.startDriving()
                     }
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.green)
-                    .cornerRadius(12)
+                case .driving:
+                    viewModel.clockIn()
+                case .clockedIn:
+                    viewModel.clockOut()
+                case .onLunch:
+                    viewModel.clockOut()
                 }
-                .disabled(viewModel.currentStatus.isActive && !viewModel.currentStatus.isOnLunch)
-                
-                Button(action: viewModel.clockOut) {
-                    HStack {
-                        Image(systemName: "clock.badge.checkmark")
-                        Text("Clock Out")
+            }) {
+                HStack {
+                    Image(systemName: {
+                        switch viewModel.currentStatus {
+                        case .clockedOut:
+                            return "car"
+                        case .driving:
+                            return "clock.arrow.circlepath"
+                        case .clockedIn:
+                            return "clock.badge.checkmark"
+                        case .onLunch:
+                            return "clock.badge.checkmark"
+                        }
+                    }())
+                    Text({
+                        switch viewModel.currentStatus {
+                        case .clockedOut:
+                            return "Start Driving"
+                        case .driving:
+                            return "Clock In"
+                        case .clockedIn:
+                            return "Clock Out"
+                        case .onLunch:
+                            return "Clock Out"
+                        }
+                    }())
+                }
+                .font(.headline)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background({
+                    switch viewModel.currentStatus {
+                    case .clockedOut:
+                        return Color.blue
+                    case .driving:
+                        return Color.green
+                    case .clockedIn:
+                        return Color.red
+                    case .onLunch:
+                        return Color.red
                     }
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.red)
-                    .cornerRadius(12)
-                }
-                .disabled(!viewModel.currentStatus.isActive || viewModel.currentStatus.isOnLunch)
+                }())
+                .cornerRadius(12)
             }
+            .disabled({
+                switch viewModel.currentStatus {
+                case .clockedOut:
+                    return viewModel.customerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                case .driving:
+                    return false
+                case .clockedIn:
+                    return false
+                case .onLunch:
+                    return false
+                }
+            }())
             
             // Lunch Break Button
             Button(action: {
@@ -276,6 +340,8 @@ struct ContentView: View {
             return .green
         case .onLunch:
             return .orange
+        case .driving:
+            return .blue
         }
     }
     
@@ -287,6 +353,8 @@ struct ContentView: View {
             return "Currently Clocked In"
         case .onLunch:
             return "On Lunch Break"
+        case .driving:
+            return "Driving"
         }
     }
     
@@ -307,6 +375,8 @@ extension ClockStatus {
             return true
         case .onLunch:
             return true
+        case .driving:
+            return true
         }
     }
     
@@ -318,6 +388,8 @@ extension ClockStatus {
             return false
         case .onLunch:
             return true
+        case .driving:
+            return false
         }
     }
 }

@@ -40,6 +40,8 @@ function AppContent() {
           clockOutTime: entry.clockOutTime ? new Date(entry.clockOutTime) : undefined,
           lunchStartTime: entry.lunchStartTime ? new Date(entry.lunchStartTime) : undefined,
           lunchEndTime: entry.lunchEndTime ? new Date(entry.lunchEndTime) : undefined,
+          driveStartTime: entry.driveStartTime ? new Date(entry.driveStartTime) : undefined,
+          driveEndTime: entry.driveEndTime ? new Date(entry.driveEndTime) : undefined,
         }));
         
         setTimeEntries(formattedEntries);
@@ -163,9 +165,12 @@ function AppContent() {
       'Customer Name',
       'Clock In Time',
       'Clock Out Time',
+      'Drive Start',
+      'Drive End',
       'Lunch Start',
       'Lunch End',
       'Total Duration',
+      'Drive Duration',
       'Lunch Duration',
       'Status'
     ];
@@ -176,11 +181,14 @@ function AppContent() {
       entry.customerName,
       formatTime(entry.clockInTime),
       entry.clockOutTime ? formatTime(entry.clockOutTime) : 'N/A',
+      entry.driveStartTime ? formatTime(entry.driveStartTime) : 'N/A',
+      entry.driveEndTime ? formatTime(entry.driveEndTime) : 'N/A',
       entry.lunchStartTime ? formatTime(entry.lunchStartTime) : 'N/A',
       entry.lunchEndTime ? formatTime(entry.lunchEndTime) : 'N/A',
       entry.formattedDuration || 'N/A',
+      entry.formattedDriveDuration || 'N/A',
       entry.formattedLunchDuration || 'N/A',
-      entry.isActive ? (entry.isOnLunch ? 'On Lunch' : 'Active') : 'Completed'
+      entry.isDriving ? 'Driving' : entry.isActive ? (entry.isOnLunch ? 'On Lunch' : 'Active') : 'Completed'
     ]);
 
     const csvContent = [csvHeaders, ...csvData]
