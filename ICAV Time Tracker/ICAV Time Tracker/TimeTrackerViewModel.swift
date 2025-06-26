@@ -263,17 +263,20 @@ class TimeTrackerViewModel: ObservableObject {
     }
     
     func exportData() -> String {
-        var csv = "Technician,Username,Customer,Clock In,Clock Out,Duration,Lunch Start,Lunch End,Lunch Duration\n"
+        var csv = "Technician,Username,Customer,Clock In,Clock Out,Duration,Drive Start,Drive End,Drive Duration,Lunch Start,Lunch End,Lunch Duration\n"
         
         for entry in timeEntries {
-            let clockIn = formatDate(entry.clockInTime)
+            let clockIn = entry.clockInTime.map(formatDate) ?? "N/A"
             let clockOut = entry.clockOutTime.map(formatDate) ?? "Active"
             let duration = entry.formattedDuration ?? "Active"
+            let driveStart = entry.driveStartTime.map(formatDate) ?? ""
+            let driveEnd = entry.driveEndTime.map(formatDate) ?? ""
+            let driveDuration = entry.formattedDriveDuration ?? ""
             let lunchStart = entry.lunchStartTime.map(formatDate) ?? ""
             let lunchEnd = entry.lunchEndTime.map(formatDate) ?? ""
             let lunchDuration = entry.formattedLunchDuration ?? ""
             
-            csv += "\(entry.technicianName),\(authManager.currentUser?.username ?? ""),\(entry.customerName),\(clockIn),\(clockOut),\(duration),\(lunchStart),\(lunchEnd),\(lunchDuration)\n"
+            csv += "\(entry.technicianName),\(authManager.currentUser?.username ?? ""),\(entry.customerName),\(clockIn),\(clockOut),\(duration),\(driveStart),\(driveEnd),\(driveDuration),\(lunchStart),\(lunchEnd),\(lunchDuration)\n"
         }
         
         return csv
@@ -301,8 +304,8 @@ class TimeTrackerViewModel: ObservableObject {
         
         return timeEntries.filter { entry in
             entry.userId == currentUser.id &&
-            entry.clockInTime >= today &&
-            entry.clockInTime < tomorrow
+            ((entry.clockInTime != nil && entry.clockInTime! >= today && entry.clockInTime! < tomorrow) ||
+             (entry.driveStartTime != nil && entry.driveStartTime! >= today && entry.driveStartTime! < tomorrow))
         }
     }
     
@@ -395,7 +398,8 @@ class TimeTrackerViewModel: ObservableObject {
             // Check if we already have this entry locally
             let existingIndex = timeEntries.firstIndex { localEntry in
                 localEntry.serverId == serverEntry.serverId ||
-                (abs(localEntry.clockInTime.timeIntervalSince(serverEntry.clockInTime)) < 60 &&
+                (localEntry.clockInTime != nil && serverEntry.clockInTime != nil &&
+                 abs(localEntry.clockInTime!.timeIntervalSince(serverEntry.clockInTime!)) < 60 &&
                  localEntry.customerName == serverEntry.customerName)
             }
             
