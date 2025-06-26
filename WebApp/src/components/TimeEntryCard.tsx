@@ -9,6 +9,14 @@ interface TimeEntryCardProps {
 }
 
 const TimeEntryCard: React.FC<TimeEntryCardProps> = ({ entry, onClick }) => {
+  console.log('TimeEntryCard received entry:', entry);
+  console.log('Drive time data:', {
+    driveStartTime: entry.driveStartTime,
+    driveEndTime: entry.driveEndTime,
+    driveDuration: entry.driveDuration,
+    formattedDriveDuration: entry.formattedDriveDuration
+  });
+
   const statusColor = getStatusColor(entry.isActive, entry.isOnLunch, entry.isDriving);
   const statusText = getStatusText(entry.isActive, entry.isOnLunch, entry.isDriving);
 

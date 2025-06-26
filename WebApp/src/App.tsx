@@ -44,6 +44,10 @@ function AppContent() {
           driveEndTime: entry.driveEndTime ? new Date(entry.driveEndTime) : undefined,
         }));
         
+        console.log('API Response - Raw entries:', apiEntries);
+        console.log('API Response - Formatted entries:', formattedEntries);
+        console.log('Entries with drive time:', formattedEntries.filter(entry => entry.driveStartTime || entry.driveEndTime));
+        
         setTimeEntries(formattedEntries);
         setError(null);
       } catch (err) {
