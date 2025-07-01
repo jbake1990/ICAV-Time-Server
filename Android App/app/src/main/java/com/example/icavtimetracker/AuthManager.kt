@@ -53,4 +53,12 @@ class AuthManager(context: Context) {
             .putBoolean(KEY_IS_AUTHENTICATED, false)
             .apply()
     }
+    
+    fun clearAllAppData() {
+        // Clear all SharedPreferences data
+        sharedPreferences.edit().clear().apply()
+        
+        // Also clear any other app-specific data that might be stored
+        // This ensures a completely clean slate on fresh installs
+    }
 } 

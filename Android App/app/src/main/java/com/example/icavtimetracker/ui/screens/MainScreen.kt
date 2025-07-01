@@ -38,6 +38,30 @@ fun MainScreen(
     
     var customerName by remember { mutableStateOf("") }
     
+    // Use derivedStateOf for expensive computations to prevent unnecessary recompositions
+    val todayEntries by remember(timeEntries) {
+        derivedStateOf {
+            val today = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            timeEntries.filter { entry ->
+                val entryDate = entry.clockInTime?.let { clockInTime ->
+                    Calendar.getInstance().apply {
+                        time = clockInTime
+                        set(Calendar.HOUR_OF_DAY, 0)
+                        set(Calendar.MINUTE, 0)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }
+                }
+                entryDate?.time == today.time
+            }.sortedBy { it.clockInTime }
+        }
+    }
+    
     // Clear error after a delay
     LaunchedEffect(error) {
         if (error != null) {
@@ -62,6 +86,16 @@ fun MainScreen(
                     }
                 },
                 actions = {
+                    // Test button for debugging
+                    IconButton(
+                        onClick = { viewModel.testResponse() }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Test"
+                        )
+                    }
+                    
                     // Sync button with pending count
                     IconButton(
                         onClick = { viewModel.syncAllPending() }
@@ -80,6 +114,7 @@ fun MainScreen(
                             }
                         }
                     }
+                    
                     IconButton(onClick = onLogout) {
                         Icon(
                             imageVector = Icons.Default.ExitToApp,
@@ -120,12 +155,16 @@ fun MainScreen(
                     clockStatus = clockStatus,
                     customerName = customerName,
                     onClockIn = {
-                        if (customerName.isNotBlank()) {
-                            viewModel.clockIn(customerName)
-                            // Only clear customer name if not coming from driving state
-                            if (clockStatus != ClockStatus.DRIVING) {
-                                customerName = ""
+                        if (clockStatus == ClockStatus.DRIVING) {
+                            // When driving, use the customer name from the current entry
+                            val drivingCustomerName = currentEntry?.customerName
+                            if (drivingCustomerName != null) {
+                                viewModel.clockIn(drivingCustomerName)
                             }
+                        } else if (customerName.isNotBlank()) {
+                            // When clocked out, use the input field customer name
+                            viewModel.clockIn(customerName)
+                            customerName = ""
                         }
                     },
                     onClockOut = { viewModel.clockOut() },
@@ -150,26 +189,7 @@ fun MainScreen(
             }
             
             // Today's entries
-            val todayEntries: List<TimeEntry> = timeEntries.filter { entry ->
-                val today = Calendar.getInstance().apply {
-                    set(Calendar.HOUR_OF_DAY, 0)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                }
-                val entryDate = entry.clockInTime?.let { clockInTime ->
-                    Calendar.getInstance().apply {
-                        time = clockInTime
-                        set(Calendar.HOUR_OF_DAY, 0)
-                        set(Calendar.MINUTE, 0)
-                        set(Calendar.SECOND, 0)
-                        set(Calendar.MILLISECOND, 0)
-                    }
-                }
-                entryDate?.time == today.time
-            }.sortedBy { it.clockInTime }
-            
-            if (todayEntries.size == 0) {
+            if (todayEntries.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
@@ -337,8 +357,9 @@ fun StatusHeader(
                         Column(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
+                            val isStandaloneLunch = entry.customerName == "Lunch Break"
                             Text(
-                                text = "On lunch break from: ${entry.customerName}",
+                                text = if (isStandaloneLunch) "On lunch break" else "On lunch break from: ${entry.customerName}",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -431,14 +452,14 @@ fun ClockButtons(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Main cycling button (Driving → Clock In → Clock Out)
+            // Main cycling button (Clock In → Clock Out)
             Button(
                 onClick = {
                     when (clockStatus) {
-                        ClockStatus.CLOCKED_OUT -> onStartDriving()
+                        ClockStatus.CLOCKED_OUT -> onClockIn()
                         ClockStatus.DRIVING -> onClockIn()
                         ClockStatus.CLOCKED_IN -> onClockOut()
-                        ClockStatus.ON_LUNCH -> onClockOut()
+                        ClockStatus.ON_LUNCH -> onEndLunch() // End lunch instead of clock out when on lunch
                     }
                 },
                 enabled = when (clockStatus) {
@@ -450,10 +471,10 @@ fun ClockButtons(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = when (clockStatus) {
-                        ClockStatus.CLOCKED_OUT -> Color(0xFF2196F3) // Blue for driving
+                        ClockStatus.CLOCKED_OUT -> Color.Green // Green for clock in
                         ClockStatus.DRIVING -> Color.Green // Green for clock in
                         ClockStatus.CLOCKED_IN -> Color.Red // Red for clock out
-                        ClockStatus.ON_LUNCH -> Color.Red // Red for clock out
+                        ClockStatus.ON_LUNCH -> Color(0xFFFF9800) // Orange for end lunch
                     }
                 )
             ) {
@@ -463,33 +484,60 @@ fun ClockButtons(
                 ) {
                     Icon(
                         imageVector = when (clockStatus) {
-                            ClockStatus.CLOCKED_OUT -> Icons.Default.LocationOn
+                            ClockStatus.CLOCKED_OUT -> Icons.Default.PlayArrow
                             ClockStatus.DRIVING -> Icons.Default.PlayArrow
                             ClockStatus.CLOCKED_IN -> Icons.Default.Close
-                            ClockStatus.ON_LUNCH -> Icons.Default.Close
+                            ClockStatus.ON_LUNCH -> Icons.Default.Check
                         },
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
                         text = when (clockStatus) {
-                            ClockStatus.CLOCKED_OUT -> "Start Driving"
+                            ClockStatus.CLOCKED_OUT -> "Clock In"
                             ClockStatus.DRIVING -> "Clock In"
                             ClockStatus.CLOCKED_IN -> "Clock Out"
-                            ClockStatus.ON_LUNCH -> "Clock Out"
+                            ClockStatus.ON_LUNCH -> "End Lunch"
                         },
                         fontWeight = FontWeight.Medium
                     )
                 }
             }
             
+            // Driving button (only show when clocked out)
+            if (clockStatus == ClockStatus.CLOCKED_OUT) {
+                Button(
+                    onClick = onStartDriving,
+                    enabled = customerName.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2196F3) // Blue for driving
+                    )
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "Start Driving",
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+            
             // Lunch button
             Button(
                 onClick = if (clockStatus == ClockStatus.ON_LUNCH) onEndLunch else onStartLunch,
-                enabled = clockStatus == ClockStatus.CLOCKED_IN || clockStatus == ClockStatus.ON_LUNCH,
+                enabled = clockStatus == ClockStatus.CLOCKED_IN || clockStatus == ClockStatus.ON_LUNCH || clockStatus == ClockStatus.CLOCKED_OUT,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Green
+                    containerColor = if (clockStatus == ClockStatus.ON_LUNCH) Color(0xFFFF9800) else Color.Green
                 )
             ) {
                 Row(
@@ -721,6 +769,27 @@ fun TodayTimestampRow(entry: TimeEntry) {
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Medium,
                             color = Color(0xFF2196F3) // Blue
+                        )
+                    }
+                }
+                
+                // Lunch Duration
+                entry.formattedLunchDuration?.let { lunchDuration ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                            tint = Color(0xFFFF9800) // Orange
+                        )
+                        Text(
+                            text = "Lunch Time: $lunchDuration",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFFFF9800) // Orange
                         )
                     }
                 }

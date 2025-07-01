@@ -14,6 +14,9 @@ class TimeTrackerRepository {
     private val dateFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault()).apply {
         timeZone = TimeZone.getTimeZone("UTC")
     }
+    private val isoDateFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault()).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }
     private var authToken: String? = null
     
     fun setAuthToken(token: String) {
@@ -59,7 +62,8 @@ class TimeTrackerRepository {
                 val token = authToken ?: return@withContext Result.failure(Exception("No auth token available"))
                 val response = apiService.getTimeEntries("Bearer $token")
                 if (response.isSuccessful) {
-                    val entries = response.body() ?: emptyList()
+                    val responseEntries = response.body() ?: emptyList()
+                    val entries = responseEntries.map { convertResponseToTimeEntry(it) }
                     Result.success(entries)
                 } else {
                     Result.failure(Exception("Failed to fetch time entries: ${response.code()}"))
@@ -76,9 +80,6 @@ class TimeTrackerRepository {
                 val token = authToken ?: return@withContext Result.failure(Exception("No auth token available"))
                 
                 Log.d("TimeTrackerRepository", "Creating time entry: ${timeEntry.id}")
-                Log.d("TimeTrackerRepository", "Customer: ${timeEntry.customerName}")
-                Log.d("TimeTrackerRepository", "Clock in: ${timeEntry.clockInTime}")
-                Log.d("TimeTrackerRepository", "Clock out: ${timeEntry.clockOutTime}")
                 
                 val request = TimeEntryRequest(
                     userId = timeEntry.userId,
@@ -94,7 +95,6 @@ class TimeTrackerRepository {
                 
                 val response = apiService.createTimeEntry("Bearer $token", request)
                 Log.d("TimeTrackerRepository", "Create response code: ${response.code()}")
-                Log.d("TimeTrackerRepository", "Create response body: ${response.body()}")
                 
                 if (response.isSuccessful) {
                     val responseEntry = response.body()
@@ -113,7 +113,6 @@ class TimeTrackerRepository {
                     }
                 } else {
                     Log.e("TimeTrackerRepository", "Create failed with code: ${response.code()}")
-                    Log.e("TimeTrackerRepository", "Error body: ${response.errorBody()?.string()}")
                     Result.failure(Exception("Failed to create time entry: ${response.code()}"))
                 }
             } catch (e: Exception) {
@@ -129,9 +128,6 @@ class TimeTrackerRepository {
                 val token = authToken ?: return@withContext Result.failure(Exception("No auth token available"))
                 
                 Log.d("TimeTrackerRepository", "Updating time entry with server ID: ${timeEntry.serverId}")
-                Log.d("TimeTrackerRepository", "Customer: ${timeEntry.customerName}")
-                Log.d("TimeTrackerRepository", "Clock in: ${timeEntry.clockInTime}")
-                Log.d("TimeTrackerRepository", "Clock out: ${timeEntry.clockOutTime}")
                 
                 val request = TimeEntryRequest(
                     id = timeEntry.serverId,
@@ -149,7 +145,6 @@ class TimeTrackerRepository {
                 val response = apiService.updateTimeEntry("Bearer $token", request)
                 
                 Log.d("TimeTrackerRepository", "Update response code: ${response.code()}")
-                Log.d("TimeTrackerRepository", "Update response body: ${response.body()}")
                 
                 if (response.isSuccessful) {
                     val responseEntry = response.body()
@@ -169,7 +164,6 @@ class TimeTrackerRepository {
                 } else {
                     val errorBody = response.errorBody()?.string()
                     Log.e("TimeTrackerRepository", "Update failed with code: ${response.code()}")
-                    Log.e("TimeTrackerRepository", "Error body: $errorBody")
                     Result.failure(Exception("Failed to update time entry: ${response.code()}"))
                 }
             } catch (e: Exception) {
@@ -185,16 +179,44 @@ class TimeTrackerRepository {
             userId = response.userId,
             technicianName = response.technicianName,
             customerName = response.customerName,
-            clockInTime = response.clockInTime?.let { dateFormatter.parse(it) },
-            clockOutTime = response.clockOutTime?.let { dateFormatter.parse(it) },
-            lunchStartTime = response.lunchStartTime?.let { dateFormatter.parse(it) },
-            lunchEndTime = response.lunchEndTime?.let { dateFormatter.parse(it) },
-            driveStartTime = response.driveStartTime?.let { dateFormatter.parse(it) },
-            driveEndTime = response.driveEndTime?.let { dateFormatter.parse(it) },
+            clockInTime = response.clockInTime?.let { parseDateString(it) },
+            clockOutTime = response.clockOutTime?.let { parseDateString(it) },
+            lunchStartTime = response.lunchStartTime?.let { parseDateString(it) },
+            lunchEndTime = response.lunchEndTime?.let { parseDateString(it) },
+            driveStartTime = response.driveStartTime?.let { parseDateString(it) },
+            driveEndTime = response.driveEndTime?.let { parseDateString(it) },
             serverId = response.id,
             isSynced = true,
             needsSync = false
         )
+    }
+    
+    private fun parseDateString(dateString: String): Date? {
+        return try {
+            // Try multiple ISO formats
+            val isoFormats = listOf(
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+                "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+                "yyyy-MM-dd'T'HH:mm:ssXXX"
+            )
+            
+            for (format in isoFormats) {
+                try {
+                    val formatter = SimpleDateFormat(format, Locale.getDefault())
+                    formatter.timeZone = TimeZone.getTimeZone("UTC")
+                    val date = formatter.parse(dateString)
+                    if (date != null) {
+                        return date
+                    }
+                } catch (e: Exception) {
+                    // Continue to next format
+                }
+            }
+            null
+        } catch (e: Exception) {
+            null
+        }
     }
     
     suspend fun deleteTimeEntry(token: String, timeEntry: TimeEntry): Result<Unit> {

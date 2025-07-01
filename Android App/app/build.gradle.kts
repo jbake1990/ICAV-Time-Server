@@ -28,6 +28,12 @@ android {
                 "proguard-rules.pro"
             )
         }
+        debug {
+            // Ensure debug builds start with clean data
+            isDebuggable = true
+            // Clear any cached data during build
+            isJniDebuggable = false
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

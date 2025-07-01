@@ -22,13 +22,25 @@ import com.example.icavtimetracker.viewmodel.TimeTrackerViewModel
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Clear any existing auth data on fresh installs to prevent test data persistence
+        val authManager = AuthManager(applicationContext)
+        val sharedPrefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+        val isFirstLaunch = sharedPrefs.getBoolean("is_first_launch", true)
+        
+        if (isFirstLaunch) {
+            // This is a fresh install, clear any existing app data
+            authManager.clearAllAppData()
+            sharedPrefs.edit().putBoolean("is_first_launch", false).apply()
+        }
+        
         setContent {
             ICAVTimeTrackerTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    TimeTrackerApp(applicationContext)
+                    TimeTrackerApp(application)
                 }
             }
         }
@@ -36,9 +48,9 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun TimeTrackerApp(applicationContext: android.content.Context) {
+fun TimeTrackerApp(application: android.app.Application) {
     val navController = rememberNavController()
-    val viewModel: TimeTrackerViewModel = viewModel { TimeTrackerViewModel(applicationContext) }
+    val viewModel: TimeTrackerViewModel = viewModel { TimeTrackerViewModel(application) }
     val isAuthenticated by viewModel.isAuthenticated.collectAsState()
     
     NavHost(

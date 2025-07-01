@@ -1,29 +1,57 @@
 import { format, parseISO, isToday, isYesterday, isThisWeek, isThisMonth } from 'date-fns';
 
 export const formatTime = (date: Date | string): string => {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
-  return format(dateObj, 'h:mm a');
+  try {
+    const dateObj = typeof date === 'string' ? parseISO(date) : date;
+    if (isNaN(dateObj.getTime())) {
+      return 'Invalid Time';
+    }
+    return format(dateObj, 'h:mm a');
+  } catch (error) {
+    return 'Invalid Time';
+  }
 };
 
 export const formatDate = (date: Date | string): string => {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
-  return format(dateObj, 'MMM d, yyyy');
+  try {
+    const dateObj = typeof date === 'string' ? parseISO(date) : date;
+    if (isNaN(dateObj.getTime())) {
+      return 'Invalid Date';
+    }
+    return format(dateObj, 'MMM d, yyyy');
+  } catch (error) {
+    return 'Invalid Date';
+  }
 };
 
 export const formatDateTime = (date: Date | string): string => {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
-  return format(dateObj, 'MMM d, yyyy h:mm a');
+  try {
+    const dateObj = typeof date === 'string' ? parseISO(date) : date;
+    if (isNaN(dateObj.getTime())) {
+      return 'Invalid Date/Time';
+    }
+    return format(dateObj, 'MMM d, yyyy h:mm a');
+  } catch (error) {
+    return 'Invalid Date/Time';
+  }
 };
 
 export const getRelativeDate = (date: Date | string): string => {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
-  
-  if (isToday(dateObj)) return 'Today';
-  if (isYesterday(dateObj)) return 'Yesterday';
-  if (isThisWeek(dateObj)) return format(dateObj, 'EEEE');
-  if (isThisMonth(dateObj)) return format(dateObj, 'MMM d');
-  
-  return format(dateObj, 'MMM d, yyyy');
+  try {
+    const dateObj = typeof date === 'string' ? parseISO(date) : date;
+    if (isNaN(dateObj.getTime())) {
+      return 'Invalid Date';
+    }
+    
+    if (isToday(dateObj)) return 'Today';
+    if (isYesterday(dateObj)) return 'Yesterday';
+    if (isThisWeek(dateObj)) return format(dateObj, 'EEEE');
+    if (isThisMonth(dateObj)) return format(dateObj, 'MMM d');
+    
+    return format(dateObj, 'MMM d, yyyy');
+  } catch (error) {
+    return 'Invalid Date';
+  }
 };
 
 export const calculateDuration = (startTime: Date, endTime?: Date): number | null => {

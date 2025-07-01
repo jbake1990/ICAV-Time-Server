@@ -8,6 +8,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.lang.reflect.Type
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 object NetworkClient {
     private const val BASE_URL = "https://icav-time-server.vercel.app/"
@@ -18,11 +19,14 @@ object NetworkClient {
         .create()
     
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY
+        level = HttpLoggingInterceptor.Level.BASIC
     }
     
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(loggingInterceptor)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
         .build()
     
     private val retrofit = Retrofit.Builder()
@@ -44,10 +48,29 @@ class DateDeserializer : JsonDeserializer<Date> {
             json?.isJsonPrimitive == true -> {
                 val dateString = json.asString
                 try {
-                    // Try ISO format first
-                    SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault()).parse(dateString)
-                        ?: SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()).parse(dateString)
-                        ?: Date(json.asLong) // Fallback to timestamp
+                    // Try multiple ISO formats
+                    val isoFormats = listOf(
+                        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+                        "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                        "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+                        "yyyy-MM-dd'T'HH:mm:ssXXX"
+                    )
+                    
+                    for (format in isoFormats) {
+                        try {
+                            val formatter = SimpleDateFormat(format, Locale.getDefault())
+                            formatter.timeZone = TimeZone.getTimeZone("UTC")
+                            val date = formatter.parse(dateString)
+                            if (date != null) {
+                                return date
+                            }
+                        } catch (e: Exception) {
+                            // Continue to next format
+                        }
+                    }
+                    
+                    // Fallback to timestamp
+                    Date(json.asLong)
                 } catch (e: Exception) {
                     Date(json.asLong) // Fallback to timestamp
                 }

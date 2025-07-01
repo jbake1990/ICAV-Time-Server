@@ -14,7 +14,7 @@ interface ApiService {
     @GET("api/time-entries")
     suspend fun getTimeEntries(
         @Header("Authorization") token: String
-    ): Response<List<TimeEntry>>
+    ): Response<List<TimeEntryResponse>>
     
     @POST("api/time-entries")
     suspend fun createTimeEntry(

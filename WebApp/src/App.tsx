@@ -162,7 +162,7 @@ function AppContent() {
     const averageHoursPerDay = totalHours / Math.max(1, new Set(timeEntries.map(e => {
       const date = e.clockInTime || e.driveStartTime;
       return date ? date.toDateString() : 'unknown';
-    })).size);
+    }).filter(dateStr => dateStr !== 'unknown')).size);
     const techniciansWorking = new Set(timeEntries.filter(entry => entry.isActive).map(entry => entry.userId)).size;
 
     return {
@@ -189,7 +189,8 @@ function AppContent() {
   const groupedEntries = useMemo(() => {
     const groups: { [key: string]: TimeEntry[] } = {};
     filteredEntries.forEach(entry => {
-      const dateKey = (entry.clockInTime || entry.driveStartTime)?.toDateString() || 'Unknown';
+      const entryDate = entry.clockInTime || entry.driveStartTime;
+      const dateKey = entryDate ? entryDate.toDateString() : 'Unknown';
       if (!groups[dateKey]) {
         groups[dateKey] = [];
       }
@@ -217,7 +218,7 @@ function AppContent() {
     ];
 
     const csvData = filteredEntries.map(entry => [
-      formatDate(entry.clockInTime || entry.driveStartTime || new Date()),
+      formatDate(entry.clockInTime || entry.driveStartTime || new Date()) || 'Unknown Date',
       entry.technicianName,
       entry.customerName,
       entry.clockInTime ? formatTime(entry.clockInTime) : 'N/A',
@@ -471,7 +472,7 @@ function AppContent() {
           {Object.entries(groupedEntries).map(([dateKey, entries]) => (
             <div key={dateKey}>
               <h3 className="text-lg font-medium text-gray-900 mb-4">
-                {formatDate(new Date(dateKey))}
+                {dateKey === 'Unknown' ? 'Unknown Date' : formatDate(new Date(dateKey))}
               </h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                 {entries.map((entry) => (
