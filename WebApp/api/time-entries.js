@@ -246,6 +246,8 @@ module.exports = async function handler(req, res) {
           AND customer_name = ${customerName}
           AND (clock_out_time IS NULL OR drive_end_time IS NULL)
           AND id != ${id || '00000000-0000-0000-0000-000000000000'}
+        ORDER BY created_at DESC
+        LIMIT 1
       `;
       
       console.log('Found active entries for same customer:', activeEntries.length);
@@ -538,142 +540,8 @@ module.exports = async function handler(req, res) {
         });
       }
     }
-  } else if (req.method === 'DELETE') {
-    try {
-      console.log('Attempting to delete time entry');
-      console.log('Request headers:', req.headers);
-      console.log('Request URL:', req.url);
-      console.log('Request method:', req.method);
-      
-      // Verify user session and get user ID and role
-      const userSession = await verifyUserSession(req.headers.authorization);
-      const userId = userSession.user_id;
-      const userRole = userSession.role;
-      
-      console.log('Authenticated user for DELETE:', {
-        userId: userId,
-        role: userRole,
-        username: userSession.username,
-        displayName: userSession.display_name
-      });
-      
-      // Extract the entry ID from the URL path
-      // Handle different URL formats: /api/time-entries/{id} or /api/time-entries/{id}/
-      let entryId = null;
-      
-      // Method 1: Try to extract from URL path
-      const urlParts = req.url.split('/');
-      console.log('URL parts:', urlParts);
-      
-      // Look for the ID in the URL parts
-      for (let i = urlParts.length - 1; i >= 0; i--) {
-        const part = urlParts[i];
-        // Check if this looks like a UUID
-        if (part && part.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-          entryId = part;
-          break;
-        }
-      }
-      
-      // Method 2: If not found in URL, check query parameters
-      if (!entryId && req.query && req.query.id) {
-        entryId = req.query.id;
-        console.log('Found ID in query parameters:', entryId);
-      }
-      
-      // Method 3: If still not found, check request body
-      if (!entryId && req.body && req.body.id) {
-        entryId = req.body.id;
-        console.log('Found ID in request body:', entryId);
-      }
-      
-      if (!entryId) {
-        console.error('No entry ID provided in URL, query params, or request body');
-        console.error('URL:', req.url);
-        console.error('Query params:', req.query);
-        console.error('Request body:', req.body);
-        return res.status(400).json({
-          error: 'Entry ID required',
-          details: 'No entry ID provided in URL, query parameters, or request body',
-          timestamp: new Date().toISOString()
-        });
-      }
-      
-      console.log('Attempting to delete entry with ID:', entryId);
-      
-      // First, check if the entry exists and get its user_id
-      const { rows: existingRows } = await sql`
-        SELECT user_id FROM time_entries WHERE id = ${entryId}
-      `;
-      
-      if (existingRows.length === 0) {
-        console.log('Entry not found with ID:', entryId);
-        return res.status(404).json({
-          error: 'Entry not found',
-          details: `No time entry found with ID: ${entryId}`,
-          timestamp: new Date().toISOString()
-        });
-      }
-      
-      const existingUserId = existingRows[0].user_id;
-      console.log('Found entry with user_id:', existingUserId);
-      
-      // Check if user can delete this entry
-      const canDelete = userRole === 'admin' || existingUserId === userId;
-      
-      if (!canDelete) {
-        console.log('User not authorized to delete this entry');
-        return res.status(403).json({
-          error: 'Not authorized to delete this entry',
-          details: 'Entry belongs to different user',
-          timestamp: new Date().toISOString()
-        });
-      }
-      
-      // Delete the entry
-      const { rowCount } = await sql`
-        DELETE FROM time_entries WHERE id = ${entryId}
-      `;
-      
-      console.log('Delete query executed, rows affected:', rowCount);
-      
-      if (rowCount > 0) {
-        console.log('Successfully deleted time entry with ID:', entryId);
-        return res.status(200).json({
-          message: 'Time entry deleted successfully',
-          deletedId: entryId,
-          timestamp: new Date().toISOString()
-        });
-      } else {
-        console.log('Delete failed - no rows affected');
-        return res.status(500).json({
-          error: 'Failed to delete time entry',
-          details: 'No rows were affected by the delete operation',
-          timestamp: new Date().toISOString()
-        });
-      }
-    } catch (error) {
-      console.error('Error deleting time entry:');
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      console.error('Error details:', error);
-      
-      if (error.message.includes('No valid authorization header') || error.message.includes('Invalid or expired session')) {
-        res.status(401).json({ 
-          error: 'Authentication required',
-          details: error.message,
-          timestamp: new Date().toISOString()
-        });
-      } else {
-        res.status(500).json({ 
-          error: 'Failed to delete time entry',
-          details: error.message,
-          timestamp: new Date().toISOString()
-        });
-      }
-    }
   } else {
-    res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
+    res.setHeader('Allow', ['GET', 'POST']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }
