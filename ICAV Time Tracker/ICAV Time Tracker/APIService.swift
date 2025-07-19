@@ -281,6 +281,46 @@ class APIService: ObservableObject {
         return submittedEntry
     }
     
+    // MARK: - Delete Operations
+    func deleteTimeEntry(_ entry: TimeEntry, token: String) async throws {
+        print("🗑️ API: Attempting to delete entry \(entry.customerName) with serverId: \(entry.serverId ?? "nil")")
+        
+        guard let serverId = entry.serverId else {
+            print("❌ API: Cannot delete entry without server ID")
+            throw APIError.serverError("Cannot delete entry without server ID")
+        }
+        
+        guard let url = URL(string: "\(baseURL)/api/time-entries/\(serverId)") else {
+            print("❌ API: Invalid URL for deletion")
+            throw APIError.invalidURL
+        }
+        
+        print("🗑️ API: DELETE request to \(url)")
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let (_, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("❌ API: Invalid response type")
+            throw APIError.invalidResponse
+        }
+        
+        print("🗑️ API: Server response status: \(httpResponse.statusCode)")
+        
+        guard httpResponse.statusCode == 200 || httpResponse.statusCode == 204 else {
+            print("❌ API: Server returned error status: \(httpResponse.statusCode)")
+            throw APIError.serverError("Failed to delete time entry")
+        }
+        
+        print("✅ API: Successfully deleted entry from server")
+        await MainActor.run {
+            self.isOnline = true
+        }
+    }
+    
     // MARK: - Batch Operations
     func submitPendingEntries(_ entries: [TimeEntry], token: String) async -> [Result<APITimeEntry, Error>] {
         var results: [Result<APITimeEntry, Error>] = []
@@ -306,7 +346,6 @@ class APIService: ObservableObject {
         } else {
             clockInDate = nil
         }
-        
         // If we have a clockInTime, use the regular initializer
         if let clockInDate = clockInDate {
             var timeEntry = TimeEntry(
@@ -315,49 +354,46 @@ class APIService: ObservableObject {
                 customerName: apiEntry.customerName,
                 clockInTime: clockInDate
             )
-            
             if let clockOutString = apiEntry.clockOutTime {
                 timeEntry.clockOutTime = dateFormatter.date(from: clockOutString)
             }
-            
             if let lunchStartString = apiEntry.lunchStartTime {
                 timeEntry.lunchStartTime = dateFormatter.date(from: lunchStartString)
             }
-            
             if let lunchEndString = apiEntry.lunchEndTime {
                 timeEntry.lunchEndTime = dateFormatter.date(from: lunchEndString)
             }
-            
             if let driveStartString = apiEntry.driveStartTime {
                 timeEntry.driveStartTime = dateFormatter.date(from: driveStartString)
             }
-            
             if let driveEndString = apiEntry.driveEndTime {
                 timeEntry.driveEndTime = dateFormatter.date(from: driveEndString)
             }
-            
-            return timeEntry
-        } else {
-            // If no clockInTime, this might be a driving-only entry
-            // We need at least a driveStartTime to create a valid entry
-            guard let driveStartString = apiEntry.driveStartTime,
-                  let driveStartDate = dateFormatter.date(from: driveStartString) else {
-                return nil
+            // Set serverId if present
+            if let id = apiEntry.id {
+                timeEntry.serverId = id
             }
-            
-            var timeEntry = TimeEntry(
-                userId: apiEntry.userId,
-                technicianName: apiEntry.technicianName,
-                customerName: apiEntry.customerName,
-                driveStartTime: driveStartDate
-            )
-            
-            if let driveEndString = apiEntry.driveEndTime {
-                timeEntry.driveEndTime = dateFormatter.date(from: driveEndString)
-            }
-            
             return timeEntry
         }
+        // If no clockInTime, this might be a driving-only entry
+        guard let driveStartString = apiEntry.driveStartTime,
+              let driveStartDate = dateFormatter.date(from: driveStartString) else {
+            return nil
+        }
+        var timeEntry = TimeEntry(
+            userId: apiEntry.userId,
+            technicianName: apiEntry.technicianName,
+            customerName: apiEntry.customerName,
+            driveStartTime: driveStartDate
+        )
+        if let driveEndString = apiEntry.driveEndTime {
+            timeEntry.driveEndTime = dateFormatter.date(from: driveEndString)
+        }
+        // Set serverId if present
+        if let id = apiEntry.id {
+            timeEntry.serverId = id
+        }
+        return timeEntry
     }
     
     func convertToUser(_ apiUser: APIUser) -> User {

@@ -238,6 +238,18 @@ module.exports = async function handler(req, res) {
       console.log('Target user ID for entry:', targetUserId, '(requested by user:', userId, 'with role:', userRole, ')');
       console.log('Request body userId:', req.body.userId, 'vs authenticated userId:', userId);
 
+      // Check for existing active entry for this user and customer
+      // This prevents multiple active entries for the same job
+      const { rows: activeEntries } = await sql`
+        SELECT id, user_id FROM time_entries 
+        WHERE user_id = ${targetUserId} 
+          AND customer_name = ${customerName}
+          AND (clock_out_time IS NULL OR drive_end_time IS NULL)
+          AND id != ${id || '00000000-0000-0000-0000-000000000000'}
+      `;
+      
+      console.log('Found active entries for same customer:', activeEntries.length);
+      
       // If an ID is provided, try to update existing entry first
       if (id) {
         console.log('Attempting to update existing entry with ID:', id);
@@ -248,7 +260,70 @@ module.exports = async function handler(req, res) {
         `;
         
         if (existingRows.length === 0) {
-          console.log('Entry with ID not found, creating new entry');
+          console.log('Entry with ID not found, checking for active entry to update instead');
+          
+          // If no entry with this ID exists, but we have an active entry for this customer,
+          // update that entry instead of creating a new one
+          if (activeEntries.length > 0) {
+            const activeEntry = activeEntries[0];
+            console.log('Updating active entry instead:', activeEntry.id);
+            
+            // Check if user can update this entry
+            const canUpdate = userRole === 'admin' || activeEntry.user_id === userId;
+            
+            if (!canUpdate) {
+              console.log('User not authorized to update this entry');
+              return res.status(403).json({
+                error: 'Not authorized to update this entry',
+                details: 'Entry belongs to different user',
+                timestamp: new Date().toISOString()
+              });
+            }
+            
+            // Update the active entry
+            const { rows: updateRows } = await sql`
+              UPDATE time_entries 
+              SET 
+                user_id = ${targetUserId},
+                technician_name = ${technicianName},
+                customer_name = ${customerName}, 
+                clock_in_time = ${clockInTime},
+                clock_out_time = ${clockOutTime},
+                lunch_start_time = ${lunchStartTime},
+                lunch_end_time = ${lunchEndTime},
+                drive_start_time = ${driveStartTime},
+                drive_end_time = ${driveEndTime},
+                updated_at = NOW()
+              WHERE id = ${activeEntry.id}
+              RETURNING *
+            `;
+
+            console.log('Update query executed, rows affected:', updateRows.length);
+            console.log('Update query result:', updateRows);
+
+            if (updateRows.length > 0) {
+              console.log('Successfully updated active time entry:', updateRows[0]);
+              
+              // Format the response to match iOS expectations
+              const formattedResponse = {
+                id: updateRows[0].id,
+                userId: updateRows[0].user_id,
+                technicianName: updateRows[0].technician_name,
+                customerName: updateRows[0].customer_name,
+                clockInTime: updateRows[0].clock_in_time,
+                clockOutTime: updateRows[0].clock_out_time,
+                lunchStartTime: updateRows[0].lunch_start_time,
+                lunchEndTime: updateRows[0].lunch_end_time,
+                driveStartTime: updateRows[0].drive_start_time,
+                driveEndTime: updateRows[0].drive_end_time
+              };
+              
+              console.log('Sending formatted response:', formattedResponse);
+              return res.status(200).json(formattedResponse);
+            }
+          } else {
+            console.log('No active entry found, will create new entry');
+          }
         } else {
           const existingUserId = existingRows[0].user_id;
           console.log('Found existing entry with user_id:', existingUserId);
@@ -265,7 +340,7 @@ module.exports = async function handler(req, res) {
             });
           }
           
-          // Build the WHERE clause - just check the ID since we've already verified ownership
+          // Update the existing entry
           const { rows: updateRows } = await sql`
             UPDATE time_entries 
             SET 
@@ -309,9 +384,69 @@ module.exports = async function handler(req, res) {
             console.log('Update failed - no rows affected, creating new entry');
           }
         }
+      } else {
+        // No ID provided, check if there's an active entry for this customer
+        if (activeEntries.length > 0) {
+          console.log('Found active entry for same customer, updating instead of creating new');
+          const activeEntry = activeEntries[0];
+          
+          // Check if user can update this entry
+          const canUpdate = userRole === 'admin' || activeEntry.user_id === userId;
+          
+          if (!canUpdate) {
+            console.log('User not authorized to update this entry');
+            return res.status(403).json({
+              error: 'Not authorized to update this entry',
+              details: 'Entry belongs to different user',
+              timestamp: new Date().toISOString()
+            });
+          }
+          
+          // Update the active entry
+          const { rows: updateRows } = await sql`
+            UPDATE time_entries 
+            SET 
+              user_id = ${targetUserId},
+              technician_name = ${technicianName},
+              customer_name = ${customerName}, 
+              clock_in_time = ${clockInTime},
+              clock_out_time = ${clockOutTime},
+              lunch_start_time = ${lunchStartTime},
+              lunch_end_time = ${lunchEndTime},
+              drive_start_time = ${driveStartTime},
+              drive_end_time = ${driveEndTime},
+              updated_at = NOW()
+            WHERE id = ${activeEntry.id}
+            RETURNING *
+          `;
+
+          console.log('Update query executed, rows affected:', updateRows.length);
+          console.log('Update query result:', updateRows);
+
+          if (updateRows.length > 0) {
+            console.log('Successfully updated active time entry:', updateRows[0]);
+            
+            // Format the response to match iOS expectations
+            const formattedResponse = {
+              id: updateRows[0].id,
+              userId: updateRows[0].user_id,
+              technicianName: updateRows[0].technician_name,
+              customerName: updateRows[0].customer_name,
+              clockInTime: updateRows[0].clock_in_time,
+              clockOutTime: updateRows[0].clock_out_time,
+              lunchStartTime: updateRows[0].lunch_start_time,
+              lunchEndTime: updateRows[0].lunch_end_time,
+              driveStartTime: updateRows[0].drive_start_time,
+              driveEndTime: updateRows[0].drive_end_time
+            };
+            
+            console.log('Sending formatted response:', formattedResponse);
+            return res.status(200).json(formattedResponse);
+          }
+        }
       }
 
-      // Create new entry (either no ID provided or ID not found)
+      // Create new entry (only if no active entry exists for this customer)
       console.log('Attempting to create new entry with values:', {
         targetUserId, 
         technicianName, 
@@ -408,6 +543,7 @@ module.exports = async function handler(req, res) {
       console.log('Attempting to delete time entry');
       console.log('Request headers:', req.headers);
       console.log('Request URL:', req.url);
+      console.log('Request method:', req.method);
       
       // Verify user session and get user ID and role
       const userSession = await verifyUserSession(req.headers.authorization);
@@ -422,14 +558,43 @@ module.exports = async function handler(req, res) {
       });
       
       // Extract the entry ID from the URL path
+      // Handle different URL formats: /api/time-entries/{id} or /api/time-entries/{id}/
+      let entryId = null;
+      
+      // Method 1: Try to extract from URL path
       const urlParts = req.url.split('/');
-      const entryId = urlParts[urlParts.length - 1];
+      console.log('URL parts:', urlParts);
+      
+      // Look for the ID in the URL parts
+      for (let i = urlParts.length - 1; i >= 0; i--) {
+        const part = urlParts[i];
+        // Check if this looks like a UUID
+        if (part && part.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+          entryId = part;
+          break;
+        }
+      }
+      
+      // Method 2: If not found in URL, check query parameters
+      if (!entryId && req.query && req.query.id) {
+        entryId = req.query.id;
+        console.log('Found ID in query parameters:', entryId);
+      }
+      
+      // Method 3: If still not found, check request body
+      if (!entryId && req.body && req.body.id) {
+        entryId = req.body.id;
+        console.log('Found ID in request body:', entryId);
+      }
       
       if (!entryId) {
-        console.error('No entry ID provided in URL');
+        console.error('No entry ID provided in URL, query params, or request body');
+        console.error('URL:', req.url);
+        console.error('Query params:', req.query);
+        console.error('Request body:', req.body);
         return res.status(400).json({
           error: 'Entry ID required',
-          details: 'No entry ID provided in URL',
+          details: 'No entry ID provided in URL, query parameters, or request body',
           timestamp: new Date().toISOString()
         });
       }

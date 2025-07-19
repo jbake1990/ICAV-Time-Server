@@ -23,6 +23,7 @@ struct TimeEntry: Identifiable, Codable {
     var serverId: String? // ID from the server after successful sync
     var isSynced: Bool = false // Whether this entry has been synced to server
     var needsSync: Bool = false // Whether this entry has local changes that need syncing
+    var markedForDeletion: Bool = false // Whether this entry should be deleted from server
     var lastModified: Date = Date() // When this entry was last modified locally
     
     // Custom initializer to generate UUID
@@ -51,6 +52,24 @@ struct TimeEntry: Identifiable, Codable {
         self.lunchEndTime = nil
         self.driveStartTime = driveStartTime
         self.driveEndTime = nil
+    }
+    
+    // New initializer for a job with no clock-in or drive time
+    init(userId: String, technicianName: String, customerName: String) {
+        self.id = UUID()
+        self.userId = userId
+        self.technicianName = technicianName
+        self.customerName = customerName
+        self.clockInTime = nil
+        self.clockOutTime = nil
+        self.lunchStartTime = nil
+        self.lunchEndTime = nil
+        self.driveStartTime = nil
+        self.driveEndTime = nil
+        self.serverId = nil
+        self.isSynced = false
+        self.needsSync = false
+        self.lastModified = Date()
     }
     
     var isActive: Bool {
@@ -111,6 +130,12 @@ struct TimeEntry: Identifiable, Codable {
         self.serverId = serverId
         isSynced = true
         needsSync = false
+    }
+    
+    mutating func markForDeletion() {
+        markedForDeletion = true
+        needsSync = true
+        lastModified = Date()
     }
     
     var syncStatus: String {

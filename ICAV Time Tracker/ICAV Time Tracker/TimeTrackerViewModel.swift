@@ -36,7 +36,7 @@ class TimeTrackerViewModel: ObservableObject {
         }
     }
     
-    func clockIn() {
+    func clockIn(customerName: String? = nil) {
         guard let currentUser = authManager.currentUser else {
             showAlert("Please log in to use the time tracker")
             return
@@ -61,7 +61,9 @@ class TimeTrackerViewModel: ObservableObject {
             }
         } else {
             // Create new entry for new customer session
-            guard !customerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            let customerNameToUse = customerName ?? self.customerName
+            
+            guard !customerNameToUse.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 showAlert("Please enter the customer name")
                 return
             }
@@ -69,7 +71,7 @@ class TimeTrackerViewModel: ObservableObject {
             var newEntry = TimeEntry(
                 userId: currentUser.id,
                 technicianName: currentUser.displayName,
-                customerName: customerName.trimmingCharacters(in: .whitespacesAndNewlines),
+                customerName: customerNameToUse.trimmingCharacters(in: .whitespacesAndNewlines),
                 clockInTime: Date()
             )
             
@@ -83,7 +85,7 @@ class TimeTrackerViewModel: ObservableObject {
             saveData()
             
             // Clear customer name for next entry
-            customerName = ""
+            self.customerName = ""
             
             // Sync immediately to show active entry in web portal
             if authManager.isOnline {
@@ -211,16 +213,29 @@ class TimeTrackerViewModel: ObservableObject {
     }
     
     func deleteEntry(_ entry: TimeEntry) {
-        timeEntries.removeAll { $0.id == entry.id }
+        print("🗑️ ViewModel: Deleting entry \(entry.customerName) (ID: \(entry.id))")
+        print("📊 ViewModel: Before deletion: \(timeEntries.count) entries")
+        
+        // Find the entry and mark it for deletion instead of removing it immediately
+        if let index = timeEntries.firstIndex(where: { $0.id == entry.id }) {
+            timeEntries[index].markForDeletion()
+            print("📝 ViewModel: Marked entry for deletion - markedForDeletion: \(timeEntries[index].markedForDeletion), needsSync: \(timeEntries[index].needsSync)")
+        } else {
+            print("❌ ViewModel: Could not find entry to delete")
+        }
         
         // If we're deleting the active entry, update status
         if case .clockedIn(let activeEntry) = currentStatus, activeEntry.id == entry.id {
             currentStatus = .clockedOut
+            print("🔄 ViewModel: Updated status to clockedOut (deleted active entry)")
         } else if case .onLunch(let lunchEntry) = currentStatus, lunchEntry.id == entry.id {
             currentStatus = .clockedOut
+            print("🔄 ViewModel: Updated status to clockedOut (deleted lunch entry)")
         }
         
         saveData()
+        print("💾 ViewModel: Data saved after deletion")
+        print("📊 ViewModel: After marking for deletion: \(timeEntries.filter { $0.markedForDeletion }.count) entries marked for deletion")
     }
     
     private func saveData() {
@@ -316,34 +331,103 @@ class TimeTrackerViewModel: ObservableObject {
             print("❌ No auth token available for sync")
             return
         }
-        
         print("🔄 Starting sync process")
         print("🔑 Token available: \(!token.isEmpty)")
-        
         await MainActor.run {
             self.isSyncing = true
             self.syncMessage = "Syncing data..."
         }
-        
         // First, sync pending local entries to server
         print("📤 Syncing pending entries to server...")
         await syncPendingEntries(token: token)
-        
         // Then, fetch any new entries from server
         print("📥 Fetching entries from server...")
         await fetchServerEntries(token: token)
-        
+        // After fetching, filter to only today's entries
         await MainActor.run {
+            self.filterToToday()
             self.isSyncing = false
             self.syncMessage = "Sync completed"
             self.userDefaults.set(Date(), forKey: self.lastSyncKey)
             print("✅ Sync completed")
         }
     }
+
+    private func fetchServerEntries(token: String) async {
+        do {
+            await MainActor.run {
+                self.syncMessage = "Downloading server data..."
+            }
+            let apiEntries = try await apiService.fetchTimeEntries(token: token)
+            let serverEntries = apiEntries.compactMap { apiService.convertToTimeEntry($0) }
+            print("[DEBUG] Fetched \(serverEntries.count) entries from server:")
+            for entry in serverEntries {
+                print("[DEBUG] Server entry: id=\(entry.id), userId=\(entry.userId), customer=\(entry.customerName), clockIn=\(String(describing: entry.clockInTime)), driveStart=\(String(describing: entry.driveStartTime))")
+            }
+            await MainActor.run {
+                // Merge server entries with local entries
+                self.mergeServerEntries(serverEntries)
+                self.saveData()
+                print("[DEBUG] After merge, local timeEntries count: \(self.timeEntries.count)")
+                for entry in self.timeEntries {
+                    print("[DEBUG] Local entry: id=\(entry.id), userId=\(entry.userId), customer=\(entry.customerName), clockIn=\(String(describing: entry.clockInTime)), driveStart=\(String(describing: entry.driveStartTime))")
+                }
+                // After merging, filter to only today's entries
+                self.filterToToday()
+            }
+        } catch {
+            print("Failed to fetch server entries: \(error)")
+        }
+    }
+
+    // Helper to filter timeEntries to only today's entries for the current user
+    private func filterToToday() {
+        guard let currentUser = authManager.currentUser else { return }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+        self.timeEntries = self.timeEntries.filter { entry in
+            entry.userId == currentUser.id &&
+            ((entry.clockInTime != nil && entry.clockInTime! >= today && entry.clockInTime! < tomorrow) ||
+             (entry.driveStartTime != nil && entry.driveStartTime! >= today && entry.driveStartTime! < tomorrow))
+        }
+        print("[DEBUG] After filterToToday, timeEntries count: \(self.timeEntries.count)")
+        for entry in self.timeEntries {
+            print("[DEBUG] Today entry: id=\(entry.id), userId=\(entry.userId), customer=\(entry.customerName), clockIn=\(String(describing: entry.clockInTime)), driveStart=\(String(describing: entry.driveStartTime))")
+        }
+    }
     
     private func syncPendingEntries(token: String) async {
+        print("🔄 Sync: Starting sync process")
+        print("📊 Sync: Total entries: \(timeEntries.count)")
+        
+        // Handle deletions first
+        let entriesToDelete = timeEntries.filter { $0.markedForDeletion }
+        print("🗑️ Sync: Found \(entriesToDelete.count) entries marked for deletion")
+        
+        if !entriesToDelete.isEmpty {
+            await MainActor.run {
+                self.syncMessage = "Deleting \(entriesToDelete.count) entries..."
+            }
+            
+            for entry in entriesToDelete {
+                print("🗑️ Sync: Attempting to delete entry \(entry.customerName) (ID: \(entry.id), ServerID: \(entry.serverId ?? "nil"))")
+                do {
+                    try await apiService.deleteTimeEntry(entry, token: token)
+                    print("✅ Sync: Successfully deleted entry \(entry.customerName) from server")
+                    // Remove from local array after successful server deletion
+                    await MainActor.run {
+                        self.timeEntries.removeAll { $0.id == entry.id }
+                        print("🗑️ Sync: Removed entry \(entry.customerName) from local storage")
+                    }
+                } catch {
+                    print("❌ Sync: Failed to delete entry \(entry.customerName): \(error)")
+                }
+            }
+        }
+        
         // Sync all pending entries (both complete and incomplete) for real-time visibility
-        let pendingEntries = timeEntries.filter { $0.needsSync }
+        let pendingEntries = timeEntries.filter { $0.needsSync && !$0.markedForDeletion }
         
         if pendingEntries.isEmpty {
             return
@@ -375,41 +459,22 @@ class TimeTrackerViewModel: ObservableObject {
         }
     }
     
-    private func fetchServerEntries(token: String) async {
-        do {
-            await MainActor.run {
-                self.syncMessage = "Downloading server data..."
-            }
-            
-            let apiEntries = try await apiService.fetchTimeEntries(token: token)
-            let serverEntries = apiEntries.compactMap { apiService.convertToTimeEntry($0) }
-            
-            await MainActor.run {
-                // Merge server entries with local entries
-                self.mergeServerEntries(serverEntries)
-                self.saveData()
-            }
-            
-        } catch {
-            print("Failed to fetch server entries: \(error)")
-        }
-    }
-    
     private func mergeServerEntries(_ serverEntries: [TimeEntry]) {
         guard let currentUser = authManager.currentUser else { return }
-        
         // Filter server entries for current user
         let userServerEntries = serverEntries.filter { $0.userId == currentUser.id }
-        
         for serverEntry in userServerEntries {
-            // Check if we already have this entry locally
+            // Try to find a matching local entry by serverId or close clockInTime/driveStartTime and customerName
             let existingIndex = timeEntries.firstIndex { localEntry in
-                localEntry.serverId == serverEntry.serverId ||
-                (localEntry.clockInTime != nil && serverEntry.clockInTime != nil &&
-                 abs(localEntry.clockInTime!.timeIntervalSince(serverEntry.clockInTime!)) < 60 &&
-                 localEntry.customerName == serverEntry.customerName)
+                (localEntry.serverId != nil && serverEntry.serverId != nil && localEntry.serverId == serverEntry.serverId) ||
+                (
+                    localEntry.customerName == serverEntry.customerName &&
+                    (
+                        (localEntry.clockInTime != nil && serverEntry.clockInTime != nil && abs(localEntry.clockInTime!.timeIntervalSince(serverEntry.clockInTime!)) < 60) ||
+                        (localEntry.driveStartTime != nil && serverEntry.driveStartTime != nil && abs(localEntry.driveStartTime!.timeIntervalSince(serverEntry.driveStartTime!)) < 60)
+                    )
+                )
             }
-            
             if let index = existingIndex {
                 // Update existing entry with server data if it's newer
                 if serverEntry.lastModified > timeEntries[index].lastModified {
@@ -486,25 +551,27 @@ class TimeTrackerViewModel: ObservableObject {
         return timeEntries.filter { $0.needsSync }.count
     }
     
-    func startDriving() {
+    func startDriving(customerName: String? = nil) {
         guard let currentUser = authManager.currentUser else {
             showAlert("Please log in to use the time tracker")
             return
         }
         
-        guard !customerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        let customerNameToUse = customerName ?? self.customerName
+        
+        guard !customerNameToUse.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             showAlert("Please enter the customer name")
             return
         }
         
-        print("🚗 Starting driving for customer: \(customerName)")
+        print("🚗 Starting driving for customer: \(customerNameToUse)")
         print("🔐 User authenticated: \(authManager.isAuthenticated)")
         print("🌐 Online status: \(authManager.isOnline)")
         
         var drivingEntry = TimeEntry(
             userId: currentUser.id,
             technicianName: currentUser.displayName,
-            customerName: customerName.trimmingCharacters(in: .whitespacesAndNewlines),
+            customerName: customerNameToUse.trimmingCharacters(in: .whitespacesAndNewlines),
             driveStartTime: Date()
         )
         
