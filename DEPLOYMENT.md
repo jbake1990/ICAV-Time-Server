@@ -62,7 +62,7 @@ vercel
 1. In your Vercel dashboard, click on your newly created Neon database
 2. Click "Open in Neon Console" 
 3. In the Neon console, go to "SQL Editor"
-4. Copy and paste the contents of `Database/schema.sql`
+4. Copy and paste the contents of `Database/schema_v2.sql`
 5. Click "Run" to execute the schema
 6. Verify tables are created in the "Tables" tab
 
