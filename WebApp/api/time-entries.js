@@ -451,9 +451,19 @@ module.exports = async function handler(req, res) {
       console.log('=== END DELETE DEBUG ===');
       
       // Verify user session and get user ID and role
+      console.log('=== AUTHENTICATION DEBUG ===');
+      console.log('Authorization header:', req.headers.authorization);
+      console.log('Authorization header type:', typeof req.headers.authorization);
+      console.log('Authorization header length:', req.headers.authorization ? req.headers.authorization.length : 'null');
+      
       const userSession = await verifyUserSession(req.headers.authorization);
       const userId = userSession.user_id;
       const userRole = userSession.role;
+      
+      console.log('=== AUTHENTICATION SUCCESS ===');
+      console.log('User session:', userSession);
+      console.log('User ID:', userId);
+      console.log('User role:', userRole);
       
       console.log('Authenticated user for DELETE:', {
         userId: userId,
@@ -623,4 +633,4 @@ function formatDuration(durationMs) {
   const hours = Math.floor(durationMs / (1000 * 60 * 60));
   const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
   return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-} 
+} console.log('=== URL DEBUG ===');
