@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "rootDirectory": "WebApp",
   "buildCommand": "npm run build",
   "outputDirectory": "build",
   "installCommand": "npm install"
