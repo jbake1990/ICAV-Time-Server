@@ -474,6 +474,10 @@ module.exports = async function handler(req, res) {
         if (entryId && entryId.includes('?')) {
           entryId = entryId.split('?')[0];
         }
+        // Also remove any trailing slash
+        if (entryId && entryId.endsWith('/')) {
+          entryId = entryId.slice(0, -1);
+        }
       }
       
       // Method 2: If still no ID, try to extract from query parameters
@@ -491,6 +495,7 @@ module.exports = async function handler(req, res) {
       console.log('URL parsing - urlParts:', urlParts);
       console.log('URL parsing - extracted entryId:', entryId);
       console.log('URL parsing - req.query:', req.query);
+      console.log('URL parsing - entryId after cleanup:', entryId);
       
       if (!entryId) {
         console.error('No entry ID provided in URL');
@@ -521,6 +526,12 @@ module.exports = async function handler(req, res) {
       }
       
       console.log('UUID validation passed for entryId:', entryId);
+      
+      // Final cleanup - ensure no query parameters or extra characters
+      if (entryId && entryId.includes('?')) {
+        entryId = entryId.split('?')[0];
+        console.log('URL parsing - entryId after final cleanup:', entryId);
+      }
       
       console.log('Attempting to delete entry with ID:', entryId);
       
