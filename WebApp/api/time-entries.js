@@ -493,6 +493,10 @@ module.exports = async function handler(req, res) {
         if (entryId && entryId.endsWith('/')) {
           entryId = entryId.slice(0, -1);
         }
+        // Additional cleanup - remove any query parameters that might be attached
+        if (entryId && entryId.includes('&')) {
+          entryId = entryId.split('&')[0];
+        }
       }
       
       // Method 2: If still no ID, try to extract from query parameters
@@ -511,6 +515,9 @@ module.exports = async function handler(req, res) {
       console.log('URL parsing - extracted entryId:', entryId);
       console.log('URL parsing - req.query:', req.query);
       console.log('URL parsing - entryId after cleanup:', entryId);
+      console.log('URL parsing - entryId length:', entryId ? entryId.length : 'null');
+      console.log('URL parsing - entryId includes ?:', entryId ? entryId.includes('?') : 'null');
+      console.log('URL parsing - entryId includes &:', entryId ? entryId.includes('&') : 'null');
       
       if (!entryId) {
         console.error('No entry ID provided in URL');
