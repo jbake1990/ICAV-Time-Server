@@ -439,6 +439,11 @@ module.exports = async function handler(req, res) {
       }
     }
   } else if (req.method === 'DELETE') {
+    // Simple test first
+    console.log('DELETE METHOD CALLED - TESTING');
+    console.log('Request URL:', req.url);
+    console.log('Request headers:', req.headers);
+    
     try {
       console.log('=== DELETE REQUEST DEBUG ===');
       console.log('Attempting to delete time entry');
