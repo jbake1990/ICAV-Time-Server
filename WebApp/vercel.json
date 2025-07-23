@@ -1,10 +1,5 @@
 {
   "version": 2,
-  "functions": {
-    "api/**/*.js": {
-      "runtime": "nodejs18.x"
-    }
-  },
   "routes": [
     {
       "src": "/api/(.*)",
@@ -27,7 +22,7 @@
       "dest": "/index.html"
     }
   ],
-  "buildCommand": "echo 'API-only deployment - no build needed'",
-  "outputDirectory": ".",
+  "buildCommand": "npm run build",
+  "outputDirectory": "build",
   "installCommand": "npm install"
 } 
