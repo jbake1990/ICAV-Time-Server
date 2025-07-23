@@ -108,7 +108,7 @@ module.exports = async function handler(req, res) {
       // Build the query based on user role
       let query;
       if (userRole === 'admin') {
-        // Admins can see all time entries
+        // Admins can see all time entries from the last 2 days
         query = sql`
           SELECT 
             id,
@@ -124,11 +124,12 @@ module.exports = async function handler(req, res) {
             created_at,
             updated_at
           FROM time_entries 
+          WHERE created_at >= NOW() - INTERVAL '2 days'
           ORDER BY clock_in_time DESC
         `;
-        console.log('Admin user - fetching all time entries');
+        console.log('Admin user - fetching time entries from last 2 days');
       } else {
-        // Regular users only see their own entries
+        // Regular users only see their own entries from the last 2 days
         query = sql`
           SELECT 
             id,
@@ -145,9 +146,10 @@ module.exports = async function handler(req, res) {
             updated_at
           FROM time_entries 
           WHERE user_id = ${userId}
+            AND created_at >= NOW() - INTERVAL '2 days'
           ORDER BY clock_in_time DESC
         `;
-        console.log('Regular user - fetching only user entries');
+        console.log('Regular user - fetching only user entries from last 2 days');
       }
       
       const { rows } = await query;
@@ -315,6 +317,7 @@ module.exports = async function handler(req, res) {
               drive_end_time = ${driveEndTime},
               updated_at = NOW()
             WHERE id = ${id}
+              AND (updated_at IS NULL OR updated_at <= ${req.body.lastModified || new Date()})
             RETURNING *
           `;
 
@@ -341,7 +344,12 @@ module.exports = async function handler(req, res) {
             console.log('Sending formatted response:', formattedResponse);
             return res.status(200).json(formattedResponse);
           } else {
-            console.log('Update failed - no rows affected, creating new entry');
+            console.log('Update failed - entry may have been modified by another device');
+            return res.status(409).json({
+              error: 'Entry was modified by another device',
+              details: 'Please refresh and try again',
+              timestamp: new Date().toISOString()
+            });
           }
         }
       }
@@ -358,6 +366,32 @@ module.exports = async function handler(req, res) {
         driveStartTime,
         driveEndTime
       });
+      
+      // Check for existing active entry for the same customer and user
+      if (clockInTime && !clockOutTime) {
+        console.log('Checking for existing active entry for customer:', customerName, 'and user:', targetUserId);
+        
+        const { rows: existingActiveRows } = await sql`
+          SELECT id, customer_name, clock_in_time, clock_out_time 
+          FROM time_entries 
+          WHERE user_id = ${targetUserId} 
+            AND customer_name = ${customerName}
+            AND clock_in_time IS NOT NULL 
+            AND clock_out_time IS NULL
+        `;
+        
+        if (existingActiveRows.length > 0) {
+          console.log('Found existing active entry:', existingActiveRows[0]);
+          return res.status(409).json({
+            error: 'Active entry already exists',
+            details: `User already has an active entry for customer: ${customerName}`,
+            existingEntryId: existingActiveRows[0].id,
+            timestamp: new Date().toISOString()
+          });
+        }
+        
+        console.log('No existing active entry found, proceeding with creation');
+      }
       
       // Validate required fields
       if (!targetUserId || !technicianName || !customerName) {
@@ -439,6 +473,11 @@ module.exports = async function handler(req, res) {
       }
     }
   } else if (req.method === 'DELETE') {
+    // Simple test first
+    console.log('DELETE METHOD CALLED - TESTING');
+    console.log('Request URL:', req.url);
+    console.log('Request headers:', req.headers);
+    
     try {
       console.log('=== DELETE REQUEST DEBUG ===');
       console.log('Attempting to delete time entry');
@@ -451,9 +490,19 @@ module.exports = async function handler(req, res) {
       console.log('=== END DELETE DEBUG ===');
       
       // Verify user session and get user ID and role
+      console.log('=== AUTHENTICATION DEBUG ===');
+      console.log('Authorization header:', req.headers.authorization);
+      console.log('Authorization header type:', typeof req.headers.authorization);
+      console.log('Authorization header length:', req.headers.authorization ? req.headers.authorization.length : 'null');
+      
       const userSession = await verifyUserSession(req.headers.authorization);
       const userId = userSession.user_id;
       const userRole = userSession.role;
+      
+      console.log('=== AUTHENTICATION SUCCESS ===');
+      console.log('User session:', userSession);
+      console.log('User ID:', userId);
+      console.log('User role:', userRole);
       
       console.log('Authenticated user for DELETE:', {
         userId: userId,
@@ -478,6 +527,10 @@ module.exports = async function handler(req, res) {
         if (entryId && entryId.endsWith('/')) {
           entryId = entryId.slice(0, -1);
         }
+        // Additional cleanup - remove any query parameters that might be attached
+        if (entryId && entryId.includes('&')) {
+          entryId = entryId.split('&')[0];
+        }
       }
       
       // Method 2: If still no ID, try to extract from query parameters
@@ -496,6 +549,9 @@ module.exports = async function handler(req, res) {
       console.log('URL parsing - extracted entryId:', entryId);
       console.log('URL parsing - req.query:', req.query);
       console.log('URL parsing - entryId after cleanup:', entryId);
+      console.log('URL parsing - entryId length:', entryId ? entryId.length : 'null');
+      console.log('URL parsing - entryId includes ?:', entryId ? entryId.includes('?') : 'null');
+      console.log('URL parsing - entryId includes &:', entryId ? entryId.includes('&') : 'null');
       
       if (!entryId) {
         console.error('No entry ID provided in URL');
@@ -535,9 +591,9 @@ module.exports = async function handler(req, res) {
       
       console.log('Attempting to delete entry with ID:', entryId);
       
-      // First, check if the entry exists and get its user_id
+      // First, check if the entry exists and get its details
       const { rows: existingRows } = await sql`
-        SELECT user_id FROM time_entries WHERE id = ${entryId}
+        SELECT user_id, customer_name, technician_name FROM time_entries WHERE id = ${entryId}
       `;
       
       if (existingRows.length === 0) {
@@ -549,7 +605,8 @@ module.exports = async function handler(req, res) {
         });
       }
       
-      const existingUserId = existingRows[0].user_id;
+      const existingEntry = existingRows[0];
+      const existingUserId = existingEntry.user_id;
       console.log('Found entry with user_id:', existingUserId);
       
       // Check if user can delete this entry
@@ -578,7 +635,11 @@ module.exports = async function handler(req, res) {
         console.log('Successfully deleted time entry with ID:', entryId);
         return res.status(200).json({
           message: 'Time entry deleted successfully',
-          deletedId: entryId,
+          deletedEntry: {
+            id: entryId,
+            customerName: existingEntry.customer_name,
+            technicianName: existingEntry.technician_name
+          },
           timestamp: new Date().toISOString()
         });
       } else {
@@ -623,4 +684,5 @@ function formatDuration(durationMs) {
   const hours = Math.floor(durationMs / (1000 * 60 * 60));
   const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
   return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-} 
+} console.log('=== URL DEBUG ===');
+// Force fresh deployment Wed Jul 23 10:25:09 EDT 2025

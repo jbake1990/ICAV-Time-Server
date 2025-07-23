@@ -19,6 +19,8 @@ class AuthManager: ObservableObject {
     private let userDefaults = UserDefaults.standard
     private let userKey = "CurrentUser"
     private let tokenKey = "AuthToken"
+    private let tokenExpiresKey = "TokenExpiresAt"
+    private let lastVerificationKey = "LastTokenVerification"
     private let apiService = APIService.shared
     
     // Test user credentials for development (fallback)
@@ -36,6 +38,28 @@ class AuthManager: ObservableObject {
         }
     }
     
+    private var tokenExpiresAt: Date? {
+        get { userDefaults.object(forKey: tokenExpiresKey) as? Date }
+        set { 
+            if let date = newValue {
+                userDefaults.set(date, forKey: tokenExpiresKey)
+            } else {
+                userDefaults.removeObject(forKey: tokenExpiresKey)
+            }
+        }
+    }
+    
+    private var lastTokenVerification: Date? {
+        get { userDefaults.object(forKey: lastVerificationKey) as? Date }
+        set { 
+            if let date = newValue {
+                userDefaults.set(date, forKey: lastVerificationKey)
+            } else {
+                userDefaults.removeObject(forKey: lastVerificationKey)
+            }
+        }
+    }
+    
     init() {
         loadUser()
         // Verify existing session on app start
@@ -47,12 +71,12 @@ class AuthManager: ObservableObject {
     }
     
     func login(username: String, password: String) {
-        guard !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard !username.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty else {
             showAlert("Please enter a username")
             return
         }
         
-        guard !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard !password.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty else {
             showAlert("Please enter a password")
             return
         }
@@ -62,8 +86,8 @@ class AuthManager: ObservableObject {
             return
         }
         
-        let cleanUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanUsername = username.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        let cleanPassword = password.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
         
         isLoading = true
         
@@ -77,6 +101,8 @@ class AuthManager: ObservableObject {
                     self.currentUser = user
                     self.isAuthenticated = true
                     self.authToken = authResponse.token
+                    self.tokenExpiresAt = parseExpiresAt(authResponse.expiresAt)
+                    self.lastTokenVerification = Date()
                     self.saveUser()
                     self.isLoading = false
                 }
@@ -146,6 +172,8 @@ class AuthManager: ObservableObject {
         currentUser = nil
         isAuthenticated = false
         authToken = nil
+        tokenExpiresAt = nil
+        lastTokenVerification = nil
         userDefaults.removeObject(forKey: userKey)
     }
     
@@ -158,6 +186,8 @@ class AuthManager: ObservableObject {
                 self.currentUser = user
                 self.isAuthenticated = true
                 self.authToken = authResponse.token
+                self.tokenExpiresAt = parseExpiresAt(authResponse.expiresAt)
+                self.lastTokenVerification = Date()
             }
         } catch {
             // Session invalid, clear local data
@@ -165,6 +195,48 @@ class AuthManager: ObservableObject {
                 self.logout()
             }
         }
+    }
+    
+    // Token validation methods
+    func isTokenExpired() -> Bool {
+        guard let expiresAt = tokenExpiresAt else { return true }
+        return Date() > expiresAt
+    }
+    
+    func shouldVerifyToken() -> Bool {
+        guard let lastVerification = lastTokenVerification else { return true }
+        let timeSinceLastVerification = Date().timeIntervalSince(lastVerification)
+        // Verify token every 15 minutes instead of 30 for better reliability
+        return timeSinceLastVerification > 15 * 60
+    }
+    
+    func verifyAndRefreshToken() async -> Bool {
+        guard let token = authToken, shouldVerifyToken() else { return true }
+        
+        do {
+            let authResponse = try await apiService.verifySession(token: token)
+            let user = apiService.convertToUser(authResponse.user)
+            
+            await MainActor.run {
+                self.currentUser = user
+                self.isAuthenticated = true
+                self.authToken = authResponse.token
+                self.tokenExpiresAt = parseExpiresAt(authResponse.expiresAt)
+                self.lastTokenVerification = Date()
+            }
+            return true
+        } catch {
+            await MainActor.run {
+                self.logout()
+            }
+            return false
+        }
+    }
+    
+    private func parseExpiresAt(_ expiresAt: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: expiresAt)
     }
     
     private func saveUser() {

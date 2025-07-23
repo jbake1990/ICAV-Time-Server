@@ -117,6 +117,22 @@ class APIService: ObservableObject {
         }
     }
     
+    private func handleNetworkError(_ error: Error) -> APIError {
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet, .networkConnectionLost:
+                return .networkUnavailable
+            case .timedOut:
+                return .serverError("Request timed out")
+            case .cannotConnectToHost:
+                return .serverError("Cannot connect to server")
+            default:
+                return .serverError(urlError.localizedDescription)
+            }
+        }
+        return .serverError(error.localizedDescription)
+    }
+    
     // MARK: - Authentication
     func login(username: String, password: String) async throws -> AuthResponse {
         guard let url = URL(string: "\(baseURL)/api/auth") else {
