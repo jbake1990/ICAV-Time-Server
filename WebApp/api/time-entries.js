@@ -639,3 +639,4 @@ function formatDuration(durationMs) {
   const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
   return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 } console.log('=== URL DEBUG ===');
+// Force fresh deployment Wed Jul 23 10:25:09 EDT 2025
