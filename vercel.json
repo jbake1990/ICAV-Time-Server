@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "cd WebApp && npm run build",
-  "outputDirectory": "WebApp/build",
-  "installCommand": "cd WebApp && npm install"
+  "buildCommand": "npm run build",
+  "outputDirectory": "build",
+  "installCommand": "npm install"
 } 
