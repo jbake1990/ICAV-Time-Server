@@ -81,6 +81,13 @@ module.exports = async function handler(req, res) {
       if (entryId && entryId.includes('&')) {
         entryId = entryId.split('&')[0];
       }
+      // Final aggressive cleanup - remove anything after the UUID pattern
+      if (entryId) {
+        const uuidMatch = entryId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+        if (uuidMatch) {
+          entryId = uuidMatch[0];
+        }
+      }
     }
     
     // Method 2: If still no ID, try to extract from query parameters
@@ -137,6 +144,17 @@ module.exports = async function handler(req, res) {
     if (entryId && entryId.includes('?')) {
       entryId = entryId.split('?')[0];
       console.log('URL parsing - entryId after final cleanup:', entryId);
+    }
+    
+    // Final aggressive cleanup - extract only the UUID part
+    if (entryId) {
+      const uuidMatch = entryId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+      if (uuidMatch) {
+        entryId = uuidMatch[0];
+        console.log('URL parsing - entryId after UUID extraction:', entryId);
+      } else {
+        console.error('No valid UUID found in entryId:', entryId);
+      }
     }
     
     console.log('Attempting to delete entry with ID:', entryId);
