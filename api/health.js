@@ -1,46 +1,20 @@
-const { sql } = require('@vercel/postgres');
-
 module.exports = async function handler(req, res) {
+  // Very basic test to see if functions work at all
   try {
-    // Test basic database connection first
-    const { rows } = await sql`SELECT NOW() as current_time`;
-    
-    let stats = {
-      activeUsers: 0,
-      activeSessions: 0,
-      totalEntries: 0
-    };
-    
-    // Try to get stats, but don't fail if tables don't exist
-    try {
-      const userCount = await sql`SELECT COUNT(*) as count FROM users WHERE is_active = true`;
-      const sessionCount = await sql`SELECT COUNT(*) as count FROM user_sessions WHERE expires_at > NOW()`;
-      const entryCount = await sql`SELECT COUNT(*) as count FROM time_entries`;
-      
-      stats = {
-        activeUsers: userCount.rows[0]?.count || 0,
-        activeSessions: sessionCount.rows[0]?.count || 0,
-        totalEntries: entryCount.rows[0]?.count || 0
-      };
-    } catch (tableError) {
-      console.log('Tables may not exist yet:', tableError.message);
-      stats.tablesExist = false;
-      stats.error = tableError.message;
-    }
-    
     res.status(200).json({
-      status: 'healthy',
+      status: 'basic_test_working',
       timestamp: new Date().toISOString(),
-      database: {
-        connected: true,
-        currentTime: rows[0]?.current_time
-      },
-      stats
+      message: 'Serverless function is executing',
+      nodeVersion: process.version,
+      env: {
+        hasPostgresUrl: !!process.env.POSTGRES_URL,
+        hasPostgresHost: !!process.env.POSTGRES_HOST,
+        postgresUrlLength: process.env.POSTGRES_URL ? process.env.POSTGRES_URL.length : 0
+      }
     });
   } catch (error) {
-    console.error('Health check error:', error);
     res.status(500).json({
-      status: 'unhealthy',
+      status: 'basic_test_failed',
       error: error.message,
       timestamp: new Date().toISOString()
     });
