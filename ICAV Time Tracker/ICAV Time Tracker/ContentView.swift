@@ -19,6 +19,7 @@ struct ContentView: View {
     @State private var newJobName = ""
     @State private var showingEditSheet = false
     @State private var editJob: TimeEntry? = nil
+    @State private var showingLogoutAlert = false
     
     // Computed property for jobs list (today's entries, most recent first)
     private var jobs: [TimeEntry] {
@@ -72,21 +73,24 @@ struct ContentView: View {
                                     showingNewJobAlert = false
                                 },
                                 trailing: Button("Add") {
-                                    if !newJobName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    if !newJobName.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
                                         print("Adding new job: \(newJobName)")
-                                        let newEntry = TimeEntry(
-                                            userId: authManager.currentUser?.id ?? UUID().uuidString,
-                                            technicianName: authManager.currentUser?.displayName ?? "",
-                                            customerName: newJobName.trimmingCharacters(in: .whitespacesAndNewlines)
-                                        )
-                                        viewModel.timeEntries.append(newEntry)
-                                        selectedJob = newEntry
+                                        viewModel.createJob(customerName: newJobName)
+                                        
+                                        // Find the newly created job to select it
+                                        if let newJob = viewModel.timeEntries.first(where: { 
+                                            $0.customerName == newJobName.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) &&
+                                            $0.userId == authManager.currentUser?.id
+                                        }) {
+                                            selectedJob = newJob
+                                        }
+                                        
                                         newJobName = ""
                                         showingNewJobAlert = false
                                         print("New job added, total jobs: \(viewModel.timeEntries.count)")
                                     }
                                 }
-                                .disabled(newJobName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                .disabled(newJobName.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty)
                             )
                         }
                     }
@@ -104,6 +108,7 @@ struct ContentView: View {
                     .font(.largeTitle)
                     .fontWeight(.bold)
                 Spacer()
+                userInfoButton
             }
             .padding([.top, .horizontal])
 
@@ -139,20 +144,7 @@ struct ContentView: View {
             .padding(.horizontal)
             .padding(.bottom, 8)
 
-            // Customer Name Input (only show when clocked out)
-            if case .clockedOut = viewModel.currentStatus {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Customer Name")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    
-                    TextField("Enter customer name", text: $viewModel.customerName)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .padding(.horizontal)
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-            }
+
             
             // Selected Job
             VStack(alignment: .leading, spacing: 4) {
@@ -218,8 +210,12 @@ struct ContentView: View {
             // Edit Timestamps Button
             Button(action: {
                 if let job = selectedJob {
+                    print("📝 Opening edit sheet for job: \(job.customerName)")
                     editJob = job
                     showingEditSheet = true
+                    print("📝 Edit sheet should now be visible")
+                } else {
+                    print("❌ No selected job to edit")
                 }
             }) {
                 HStack(spacing: 12) {
@@ -262,11 +258,14 @@ struct ContentView: View {
                             print("🔄 Updated selected job to: \(selectedJob?.customerName ?? "None")")
                         }
                         
-                        // Trigger sync to delete from server
-                        viewModel.triggerSync()
                         showingEditSheet = false
                         print("✅ Deletion completed")
                     })
+                } else {
+                    Text("No job selected for editing")
+                        .navigationBarItems(trailing: Button("Done") {
+                            showingEditSheet = false
+                        })
                 }
             }
             .alert("Time Tracker", isPresented: $viewModel.showingAlert) {
@@ -324,15 +323,16 @@ struct ContentView: View {
             }
         case "Clock Out":
             viewModel.clockOut()
-        case "Start Lunch":
-            viewModel.startLunch()
-        case "End Lunch":
-            viewModel.endLunch()
+        case "Start Break":
+            viewModel.startLunch() // Reuse startLunch for break functionality
+        case "End Break":
+            viewModel.endLunch() // Reuse endLunch for break functionality
         case "Start Driving":
             if let selectedJob = selectedJob {
                 viewModel.startDriving(customerName: selectedJob.customerName)
             } else {
-                viewModel.startDriving()
+                // Cannot start driving without a selected job
+                break
             }
         case "End Driving":
             viewModel.endDriving()
@@ -348,6 +348,13 @@ struct ContentView: View {
         } else {
             // If no active entry, try to find the most recent job
             selectedJob = jobs.first
+        }
+        
+        // Also update selectedJob to the latest version from the ViewModel
+        if let currentSelectedJob = selectedJob {
+            if let updatedJob = viewModel.timeEntries.first(where: { $0.id == currentSelectedJob.id }) {
+                selectedJob = updatedJob
+            }
         }
     }
     
@@ -391,8 +398,8 @@ struct ContentView: View {
             return [
                 "Clock In": .unavailable,
                 "Clock Out": .unavailable,
-                "Start Lunch": .unavailable,
-                "End Lunch": .unavailable,
+                "Start Break": .unavailable,
+                "End Break": .unavailable,
                 "Start Driving": .unavailable,
                 "End Driving": .unavailable
             ]
@@ -441,7 +448,7 @@ struct ContentView: View {
         
         // If the selected job is clocked out (new job or completed job)
         if isClockedOut {
-            let hasCustomerName = !selectedJob.customerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let hasCustomerName = !selectedJob.customerName.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty
             return [
                 "Clock In": hasCustomerName ? .available : .unavailable,
                 "Clock Out": .unavailable,
@@ -569,7 +576,7 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else if case .driving = viewModel.currentStatus {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Currently driving to: \(viewModel.customerName)")
+                    Text("Currently driving to: \(selectedJob?.customerName ?? "Unknown")")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     
@@ -584,159 +591,7 @@ struct ContentView: View {
         .background(Color(.systemGray6))
     }
     
-    private var inputSection: some View {
-        VStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Customer Name")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                
-                TextField("Enter customer name", text: $viewModel.customerName)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .disabled({
-                        switch viewModel.currentStatus {
-                        case .clockedOut:
-                            return false
-                        case .driving:
-                            return true
-                        case .clockedIn:
-                            return true
-                        case .onLunch:
-                            return true
-                        }
-                    }())
-            }
-        }
-        .padding()
-    }
-    
-    private var clockButtons: some View {
-        VStack(spacing: 16) {
-            // Clock In/Out Button
-            Button(action: {
-                switch viewModel.currentStatus {
-                case .clockedOut:
-                    if !viewModel.customerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        viewModel.clockIn()
-                    }
-                case .driving:
-                    viewModel.clockIn()
-                case .clockedIn:
-                    viewModel.clockOut()
-                case .onLunch:
-                    viewModel.clockOut()
-                }
-            }) {
-                HStack {
-                    Image(systemName: {
-                        switch viewModel.currentStatus {
-                        case .clockedOut:
-                            return "play.circle"
-                        case .driving:
-                            return "play.circle"
-                        case .clockedIn:
-                            return "stop.circle"
-                        case .onLunch:
-                            return "stop.circle"
-                        }
-                    }())
-                    Text({
-                        switch viewModel.currentStatus {
-                        case .clockedOut:
-                            return "Clock In"
-                        case .driving:
-                            return "Clock In"
-                        case .clockedIn:
-                            return "Clock Out"
-                        case .onLunch:
-                            return "Clock Out"
-                        }
-                    }())
-                }
-                .font(.headline)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background({
-                    switch viewModel.currentStatus {
-                    case .clockedOut:
-                        return Color.green
-                    case .driving:
-                        return Color.green
-                    case .clockedIn:
-                        return Color.red
-                    case .onLunch:
-                        return Color.red
-                    }
-                }())
-                .cornerRadius(12)
-            }
-            .disabled({
-                switch viewModel.currentStatus {
-                case .clockedOut:
-                    return viewModel.customerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                case .driving:
-                    return false
-                case .clockedIn:
-                    return false
-                case .onLunch:
-                    return false
-                }
-            }())
-            
-            // Start Driving Button (only show when clocked out)
-            if case .clockedOut = viewModel.currentStatus {
-                Button(action: {
-                    viewModel.startDriving()
-                }) {
-                    HStack {
-                        Image(systemName: "car")
-                        Text("Start Driving")
-                    }
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .cornerRadius(12)
-                }
-                .disabled(viewModel.customerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-            
-            // Lunch Break Button
-            Button(action: {
-                if viewModel.currentStatus.isOnLunch {
-                    viewModel.endLunch()
-                } else {
-                    viewModel.startLunch()
-                }
-            }) {
-                HStack {
-                    Image(systemName: viewModel.currentStatus.isOnLunch ? "cup.and.saucer.fill" : "cup.and.saucer")
-                    Text(viewModel.currentStatus.isOnLunch ? "End Lunch" : "Start Lunch")
-                }
-                .font(.headline)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.green)
-                .cornerRadius(12)
-            }
-            .disabled({
-                switch viewModel.currentStatus {
-                case .clockedOut:
-                    return false
-                case .driving:
-                    return true
-                case .clockedIn:
-                    return false
-                case .onLunch:
-                    return false
-                }
-            }())
-        }
-        .padding()
-    }
+
     
     private var statusColor: Color {
         switch viewModel.currentStatus {
@@ -817,33 +672,61 @@ struct EditTimestampsSheet: View {
     @State private var showingDeleteAlert = false
     
     init(job: TimeEntry, onSave: @escaping (TimeEntry) -> Void, onDelete: @escaping (TimeEntry) -> Void) {
+        print("📝 EditTimestampsSheet init called for job: \(job.customerName)")
         self.job = job
         self.onSave = onSave
         self.onDelete = onDelete
-        // Use job values or default to now
-        _clockInTime = State(initialValue: job.clockInTime ?? Date())
-        _clockOutTime = State(initialValue: job.clockOutTime ?? Date())
-        _lunchStartTime = State(initialValue: job.lunchStartTime ?? Date())
-        _lunchEndTime = State(initialValue: job.lunchEndTime ?? Date())
-        _driveStartTime = State(initialValue: job.driveStartTime ?? Date())
-        _driveEndTime = State(initialValue: job.driveEndTime ?? Date())
+        
+        // Use job values or default to now, but ensure we have valid dates
+        let now = Date()
+        _clockInTime = State(initialValue: job.clockInTime ?? now)
+        _clockOutTime = State(initialValue: job.clockOutTime ?? now)
+        _lunchStartTime = State(initialValue: job.lunchStartTime ?? now)
+        _lunchEndTime = State(initialValue: job.lunchEndTime ?? now)
+        _driveStartTime = State(initialValue: job.driveStartTime ?? now)
+        _driveEndTime = State(initialValue: job.driveEndTime ?? now)
+        print("📝 EditTimestampsSheet init completed")
     }
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("Clock In/Out")) {
-                    DatePicker("Clock In", selection: $clockInTime, displayedComponents: [.date, .hourAndMinute])
-                    DatePicker("Clock Out", selection: $clockOutTime, displayedComponents: [.date, .hourAndMinute])
-                }
-                Section(header: Text("Lunch")) {
-                    DatePicker("Lunch Start", selection: $lunchStartTime, displayedComponents: [.date, .hourAndMinute])
-                    DatePicker("Lunch End", selection: $lunchEndTime, displayedComponents: [.date, .hourAndMinute])
-                }
-                Section(header: Text("Drive")) {
-                    DatePicker("Drive Start", selection: $driveStartTime, displayedComponents: [.date, .hourAndMinute])
-                    DatePicker("Drive End", selection: $driveEndTime, displayedComponents: [.date, .hourAndMinute])
+                // Only show Clock In/Out section if there are clock times
+                if job.clockInTime != nil || job.clockOutTime != nil {
+                    Section(header: Text("Clock In/Out")) {
+                        if job.clockInTime != nil {
+                            DatePicker("Clock In", selection: $clockInTime, displayedComponents: [.date, .hourAndMinute])
+                        }
+                        if job.clockOutTime != nil {
+                            DatePicker("Clock Out", selection: $clockOutTime, displayedComponents: [.date, .hourAndMinute])
+                        }
+                    }
                 }
                 
+                // Only show Lunch section if there are lunch times
+                if job.lunchStartTime != nil || job.lunchEndTime != nil {
+                    Section(header: Text("Lunch")) {
+                        if job.lunchStartTime != nil {
+                            DatePicker("Lunch Start", selection: $lunchStartTime, displayedComponents: [.date, .hourAndMinute])
+                        }
+                        if job.lunchEndTime != nil {
+                            DatePicker("Lunch End", selection: $lunchEndTime, displayedComponents: [.date, .hourAndMinute])
+                        }
+                    }
+                }
+                
+                // Only show Drive section if there are drive times
+                if job.driveStartTime != nil || job.driveEndTime != nil {
+                    Section(header: Text("Drive")) {
+                        if job.driveStartTime != nil {
+                            DatePicker("Drive Start", selection: $driveStartTime, displayedComponents: [.date, .hourAndMinute])
+                        }
+                        if job.driveEndTime != nil {
+                            DatePicker("Drive End", selection: $driveEndTime, displayedComponents: [.date, .hourAndMinute])
+                        }
+                    }
+                }
+                
+                // Delete section always available
                 Section {
                     Button(action: {
                         showingDeleteAlert = true
@@ -862,12 +745,25 @@ struct EditTimestampsSheet: View {
                 leading: Button("Cancel") { onSave(job) },
                 trailing: Button("Save") {
                     var updated = job
-                    updated.clockInTime = clockInTime
-                    updated.clockOutTime = clockOutTime
-                    updated.lunchStartTime = lunchStartTime
-                    updated.lunchEndTime = lunchEndTime
-                    updated.driveStartTime = driveStartTime
-                    updated.driveEndTime = driveEndTime
+                    // Only update times that existed in the original job
+                    if job.clockInTime != nil {
+                        updated.clockInTime = clockInTime
+                    }
+                    if job.clockOutTime != nil {
+                        updated.clockOutTime = clockOutTime
+                    }
+                    if job.lunchStartTime != nil {
+                        updated.lunchStartTime = lunchStartTime
+                    }
+                    if job.lunchEndTime != nil {
+                        updated.lunchEndTime = lunchEndTime
+                    }
+                    if job.driveStartTime != nil {
+                        updated.driveStartTime = driveStartTime
+                    }
+                    if job.driveEndTime != nil {
+                        updated.driveEndTime = driveEndTime
+                    }
                     onSave(updated)
                 }
             )

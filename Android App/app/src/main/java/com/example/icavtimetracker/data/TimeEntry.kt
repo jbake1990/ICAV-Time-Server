@@ -12,6 +12,7 @@ data class TimeEntry(
     val technicianName: String,
     @SerializedName("customerName")
     val customerName: String,
+    
     @SerializedName("clockInTime")
     val clockInTime: Date? = null,
     @SerializedName("clockOutTime")
@@ -78,6 +79,8 @@ data class TimeEntry(
             val minutes = ((durationMs % (1000 * 60 * 60)) / (1000 * 60)).toInt()
             String.format("%02d:%02d", hours, minutes)
         }
+    
+
     
     fun markForSync() {
         needsSync = true

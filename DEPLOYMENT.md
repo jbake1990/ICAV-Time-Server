@@ -1,194 +1,62 @@
-# ICAV Time Tracker - Vercel + Neon Deployment Guide
+# ICAV Time Tracker v2 Server Deployment
 
-This guide will walk you through deploying the ICAV Time Tracker web app to Vercel with a Neon PostgreSQL database, and connecting your iOS app.
+## Vercel Deployment
 
-## Prerequisites
+### 1. Create New Vercel Project
+- Go to Vercel dashboard
+- Create new project from GitHub repository
+- Connect to `jbake1990/icav-time-dev` repository
+- Select the main branch
 
-1. **GitHub Account** - Your code needs to be on GitHub
-2. **Vercel Account** - Sign up at [vercel.com](https://vercel.com)
-3. **Vercel CLI** (optional) - `npm i -g vercel`
+### 2. Environment Variables
+Set these environment variables in Vercel:
+```
+POSTGRES_URL=your_postgres_connection_string
+POSTGRES_HOST=your_postgres_host
+POSTGRES_DATABASE=your_database_name
+POSTGRES_USERNAME=your_username
+POSTGRES_PASSWORD=your_password
+```
 
-**Note:** No separate Neon account needed - Vercel will handle the Neon setup automatically!
-
-## Step 1: Push Code to GitHub
-
-1. Create a new repository on GitHub
-2. Push your code:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git branch -M main
-   git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-   git push -u origin main
+### 3. Database Setup
+1. Create a new PostgreSQL database (Vercel Postgres recommended)
+2. Run the v2 schema:
+   ```sql
+   -- Use the schema_v2.sql file in Database/
+   -- This includes drive time columns and nullable clock_in_time
    ```
 
-## Step 2: Deploy to Vercel
+### 4. API Endpoints
+The v2 server includes these endpoints:
+- `GET /api/time-entries` - Fetch time entries
+- `POST /api/time-entries` - Create/update time entries  
+- `DELETE /api/time-entries/{id}` - Delete time entries
+- `POST /api/auth` - Authentication
+- `GET /api/users` - User management
+- `GET /api/health` - Health check
 
-### Option A: Deploy via Vercel Dashboard (Recommended)
+### 5. v2 Features
+- ✅ Drive time tracking (drive_start_time, drive_end_time)
+- ✅ Driving-only entries (clock_in_time can be NULL)
+- ✅ DELETE functionality for time entries
+- ✅ Enhanced error handling and logging
+- ✅ Support for multiple clock in/outs per job
 
-1. Go to [vercel.com/dashboard](https://vercel.com/dashboard)
-2. Click "New Project"
-3. Import your GitHub repository
-4. Configure the project:
-   - **Framework Preset**: Create React App
-   - **Root Directory**: `WebApp`
-   - **Build Command**: `npm run build`
-   - **Output Directory**: `build`
-   - **Install Command**: `npm install`
+### 6. Testing
+Test the deployment with:
+- iOS app from ios-app branch
+- Android app from android-app branch
+- Web app (included in server)
 
-### Option B: Deploy via CLI
+## Migration from v1
+If migrating from v1 to v2:
+1. Backup existing data
+2. Run migration: `migrate_drive_time.sql`
+3. Deploy v2 server
+4. Test thoroughly before production
 
-```bash
-cd WebApp
-vercel
-```
-
-## Step 3: Set Up Neon PostgreSQL Database via Vercel
-
-1. In your Vercel project dashboard, go to the "Storage" tab
-2. Click "Create Database"
-3. Select "Neon" from the database options
-4. Click "Continue" to connect with Neon
-5. If you don't have a Neon account, you'll be prompted to create one
-6. Choose your database settings:
-   - Database name (e.g., "icav-time-tracker")
-   - Region (choose one close to your users)
-7. Click "Create & Deploy"
-8. Vercel will automatically create the database and set up environment variables
-
-## Step 4: Initialize Database Schema
-
-1. In your Vercel dashboard, click on your newly created Neon database
-2. Click "Open in Neon Console" 
-3. In the Neon console, go to "SQL Editor"
-4. Copy and paste the contents of `Database/schema_v2.sql`
-5. Click "Run" to execute the schema
-6. Verify tables are created in the "Tables" tab
-
-## Step 5: Environment Variables (Auto-configured)
-
-When you create the Neon database through Vercel, the following environment variables are automatically configured:
-- `POSTGRES_URL` - Your database connection string
-- `POSTGRES_PRISMA_URL` - Prisma-optimized connection string  
-- `POSTGRES_URL_NON_POOLING` - Direct connection string
-
-**No manual configuration needed!** ✅
-
-## Step 6: Redeploy with Database
-
-1. Go to your project's "Deployments" tab
-2. Click "Redeploy" on your latest deployment
-3. This will connect your API to the database
-
-## Step 7: Test Your Deployment
-
-1. Visit your deployed URL (e.g., `https://your-app.vercel.app`)
-2. The web app should now be connected to the database
-3. You should see the sample data from the schema
-
-## Step 8: Connect iOS App
-
-### Update iOS App Configuration
-
-1. In your iOS project, update the API base URL to your Vercel deployment:
-   ```swift
-   // In your networking code
-   let baseURL = "https://your-app.vercel.app"
-   ```
-
-2. Update your iOS app to use the new API endpoints:
-   - `GET /api/time-entries` - Fetch all time entries
-   - `POST /api/time-entries` - Create new time entry
-   - `GET /api/users` - Fetch all users
-   - `POST /api/users` - Create new user
-
-### iOS API Integration Example
-
-```swift
-// Example API call in iOS
-func fetchTimeEntries() async throws -> [TimeEntry] {
-    guard let url = URL(string: "https://your-app.vercel.app/api/time-entries") else {
-        throw NetworkError.invalidURL
-    }
-    
-    let (data, _) = try await URLSession.shared.data(from: url)
-    return try JSONDecoder().decode([TimeEntry].self, from: data)
-}
-```
-
-## Step 9: Production Considerations
-
-### Security
-1. **CORS**: Configure CORS in your API functions if needed
-2. **Authentication**: Add authentication to your API endpoints
-3. **Rate Limiting**: Consider adding rate limiting for production
-
-### Monitoring
-1. Set up Vercel Analytics
-2. Monitor database performance
-3. Set up error tracking (e.g., Sentry)
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Database Connection Errors**
-   - Check environment variables are set correctly
-   - Verify database is created and schema is applied
-
-2. **API 500 Errors**
-   - Check Vercel function logs in dashboard
-   - Verify database schema matches API expectations
-
-3. **CORS Issues**
-   - Add CORS headers to your API functions if needed
-
-### Getting Help
-
-- Check Vercel documentation: [vercel.com/docs](https://vercel.com/docs)
-- Check Neon documentation: [neon.tech/docs](https://neon.tech/docs)
-- Check @vercel/postgres docs: [vercel.com/docs/storage/vercel-postgres](https://vercel.com/docs/storage/vercel-postgres)
-
-## API Endpoints Reference
-
-### Time Entries
-- `GET /api/time-entries` - Get all time entries
-- `POST /api/time-entries` - Create new time entry
-
-### Users
-- `GET /api/users` - Get all users
-- `POST /api/users` - Create new user
-
-### Request/Response Format
-
-**Time Entry POST Request:**
-```json
-{
-  "userId": "uuid",
-  "technicianName": "John Doe",
-  "customerName": "ABC Company",
-  "clockInTime": "2024-01-15T08:00:00Z",
-  "clockOutTime": "2024-01-15T17:00:00Z",
-  "lunchStartTime": "2024-01-15T12:00:00Z",
-  "lunchEndTime": "2024-01-15T13:00:00Z"
-}
-```
-
-**User POST Request:**
-```json
-{
-  "username": "john.doe",
-  "displayName": "John Doe"
-}
-```
-
-## Next Steps
-
-1. **Add Authentication**: Implement user login/logout
-2. **Add Real-time Updates**: Use WebSockets or Server-Sent Events
-3. **Add Export Functionality**: CSV/Excel export for time entries
-4. **Add Analytics**: Dashboard with charts and insights
-5. **Add Notifications**: Email/SMS alerts for unusual patterns
-
-Your ICAV Time Tracker is now deployed and ready for production use! 🎉 
+## Production Deployment
+When ready for production:
+1. Merge server changes to production repository
+2. Deploy to production Vercel project
+3. Update app store listings

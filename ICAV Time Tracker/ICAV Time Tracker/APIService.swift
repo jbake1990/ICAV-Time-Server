@@ -80,8 +80,8 @@ enum APIError: Error, LocalizedError {
 class APIService: ObservableObject {
     static let shared = APIService()
     
-    // TODO: Replace with your actual Vercel deployment URL
-    private let baseURL = "https://icav-time-server.vercel.app"
+    // Updated to use the working deployment URL
+    private let baseURL = "https://icav-time-server-d7qv1voas-jason-bakers-projects-29e16630.vercel.app"
     
     @Published var isOnline = true
     @Published var lastSyncDate: Date?

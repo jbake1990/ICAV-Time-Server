@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.Result
 
 class TimeTrackerRepository {
     private val apiService = NetworkClient.apiService
@@ -39,6 +40,7 @@ class TimeTrackerRepository {
                     if (authResponse != null) {
                         authToken = authResponse.token
                         Log.d("TimeTrackerRepository", "Login successful for user: ${authResponse.user.displayName}")
+                        Log.d("TimeTrackerRepository", "User ID: ${authResponse.user.id}")
                         Result.success(Pair(authResponse.token, authResponse.user))
                     } else {
                         Log.e("TimeTrackerRepository", "Login response body is null")
@@ -56,19 +58,57 @@ class TimeTrackerRepository {
         }
     }
     
+    suspend fun verifySession(token: String): Result<Pair<String, User>> {
+        return withContext(Dispatchers.IO) {
+            try {
+                Log.d("TimeTrackerRepository", "Verifying session token")
+                val request = AuthRequest(action = "verify", sessionToken = token)
+                
+                val response = apiService.verifySession(request)
+                Log.d("TimeTrackerRepository", "Verify session response code: ${response.code()}")
+                
+                if (response.isSuccessful) {
+                    val authResponse = response.body()
+                    if (authResponse != null) {
+                        authToken = authResponse.token
+                        Log.d("TimeTrackerRepository", "Session verification successful for user: ${authResponse.user.displayName}")
+                        Result.success(Pair(authResponse.token, authResponse.user))
+                    } else {
+                        Log.e("TimeTrackerRepository", "Verify session response body is null")
+                        Result.failure(Exception("Empty response"))
+                    }
+                } else {
+                    Log.e("TimeTrackerRepository", "Session verification failed with code: ${response.code()}")
+                    Result.failure(Exception("Session verification failed: ${response.code()}"))
+                }
+            } catch (e: Exception) {
+                Log.e("TimeTrackerRepository", "Session verification exception: ${e.message}", e)
+                Result.failure(e)
+            }
+        }
+    }
+    
     suspend fun getTimeEntries(): Result<List<TimeEntry>> {
         return withContext(Dispatchers.IO) {
             try {
                 val token = authToken ?: return@withContext Result.failure(Exception("No auth token available"))
+                Log.d("TimeTrackerRepository", "Fetching time entries with token: ${token.take(10)}...")
                 val response = apiService.getTimeEntries("Bearer $token")
+                Log.d("TimeTrackerRepository", "Get time entries response code: ${response.code()}")
+                
                 if (response.isSuccessful) {
                     val responseEntries = response.body() ?: emptyList()
                     val entries = responseEntries.map { convertResponseToTimeEntry(it) }
+                    Log.d("TimeTrackerRepository", "Successfully fetched ${entries.size} time entries")
                     Result.success(entries)
                 } else {
-                    Result.failure(Exception("Failed to fetch time entries: ${response.code()}"))
+                    val errorBody = response.errorBody()?.string()
+                    Log.e("TimeTrackerRepository", "Get time entries failed with code: ${response.code()}")
+                    Log.e("TimeTrackerRepository", "Error body: $errorBody")
+                    Result.failure(Exception("Failed to fetch time entries: ${response.code()} - $errorBody"))
                 }
             } catch (e: Exception) {
+                Log.e("TimeTrackerRepository", "Get time entries exception: ${e.message}", e)
                 Result.failure(e)
             }
         }
@@ -93,30 +133,36 @@ class TimeTrackerRepository {
                     driveEndTime = timeEntry.driveEndTime?.let { dateFormatter.format(it) }
                 )
                 
+                Log.d("TimeTrackerRepository", "Creating time entry request: $request")
+                
                 val response = apiService.createTimeEntry("Bearer $token", request)
                 Log.d("TimeTrackerRepository", "Create response code: ${response.code()}")
                 
                 if (response.isSuccessful) {
-                    val responseEntry = response.body()
-                    if (responseEntry != null) {
-                        Log.d("TimeTrackerRepository", "Time entry created successfully with server ID: ${responseEntry.id}")
-                        val createdEntry = timeEntry.copy(
-                            serverId = responseEntry.id,
-                            isSynced = true,
-                            needsSync = false,
-                            lastModified = Date()
-                        )
-                        Result.success(createdEntry)
+                    val createdEntry = response.body()
+                    if (createdEntry != null) {
+                        val entry = convertResponseToTimeEntry(createdEntry)
+                        Log.d("TimeTrackerRepository", "Successfully created time entry: ${entry.id}")
+                        Result.success(entry)
                     } else {
                         Log.e("TimeTrackerRepository", "Create response body is null")
                         Result.failure(Exception("Empty response"))
                     }
                 } else {
-                    Log.e("TimeTrackerRepository", "Create failed with code: ${response.code()}")
-                    Result.failure(Exception("Failed to create time entry: ${response.code()}"))
+                    val errorBody = response.errorBody()?.string()
+                    Log.e("TimeTrackerRepository", "Create time entry failed with code: ${response.code()}")
+                    Log.e("TimeTrackerRepository", "Error body: $errorBody")
+                    
+                    // Handle 409 Conflict (duplicate active entry)
+                    if (response.code() == 409) {
+                        Log.d("TimeTrackerRepository", "Server returned 409 - active entry already exists")
+                        Result.failure(Exception("Active entry already exists for this customer"))
+                    } else {
+                        Result.failure(Exception("Failed to create time entry: ${response.code()} - $errorBody"))
+                    }
                 }
             } catch (e: Exception) {
-                Log.e("TimeTrackerRepository", "Create exception: ${e.message}", e)
+                Log.e("TimeTrackerRepository", "Create time entry exception: ${e.message}", e)
                 Result.failure(e)
             }
         }
@@ -191,6 +237,37 @@ class TimeTrackerRepository {
         )
     }
     
+    suspend fun deleteTimeEntry(timeEntry: TimeEntry): Result<Boolean> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val token = authToken ?: return@withContext Result.failure(Exception("No auth token available"))
+                val serverId = timeEntry.serverId ?: return@withContext Result.failure(Exception("No server ID available for deletion"))
+                
+                Log.d("TimeTrackerRepository", "Deleting time entry with server ID: $serverId")
+                Log.d("TimeTrackerRepository", "Token available: ${token.isNotEmpty()}")
+                Log.d("TimeTrackerRepository", "Making DELETE request to: api/time-entries/$serverId")
+                
+                val response = apiService.deleteTimeEntry("Bearer $token", serverId)
+                
+                Log.d("TimeTrackerRepository", "Delete response code: ${response.code()}")
+                Log.d("TimeTrackerRepository", "Delete response successful: ${response.isSuccessful}")
+                
+                if (response.isSuccessful) {
+                    Log.d("TimeTrackerRepository", "Time entry deleted successfully")
+                    Result.success(true)
+                } else {
+                    val errorBody = response.errorBody()?.string()
+                    Log.e("TimeTrackerRepository", "Delete failed with code: ${response.code()}")
+                    Log.e("TimeTrackerRepository", "Error body: $errorBody")
+                    Result.failure(Exception("Failed to delete time entry: ${response.code()}"))
+                }
+            } catch (e: Exception) {
+                Log.e("TimeTrackerRepository", "Error deleting time entry", e)
+                Result.failure(e)
+            }
+        }
+    }
+    
     private fun parseDateString(dateString: String): Date? {
         return try {
             // Try multiple ISO formats
@@ -219,21 +296,7 @@ class TimeTrackerRepository {
         }
     }
     
-    suspend fun deleteTimeEntry(token: String, timeEntry: TimeEntry): Result<Unit> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val serverId = timeEntry.serverId ?: return@withContext Result.failure(Exception("No server ID for deletion"))
-                val response = apiService.deleteTimeEntry("Bearer $token", serverId)
-                if (response.isSuccessful) {
-                    Result.success(Unit)
-                } else {
-                    Result.failure(Exception("Failed to delete time entry: ${response.code()}"))
-                }
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
-        }
-    }
+
     
     suspend fun getUsers(token: String): Result<List<User>> {
         return withContext(Dispatchers.IO) {

@@ -1,11 +1,10 @@
 package com.example.icavtimetracker.data
 
 import com.google.gson.annotations.SerializedName
-import java.util.UUID
 
 data class User(
     @SerializedName("id")
-    val id: String = UUID.randomUUID().toString(),
+    val id: String,
     @SerializedName("username")
     val username: String,
     @SerializedName("displayName")

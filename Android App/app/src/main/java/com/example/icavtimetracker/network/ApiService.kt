@@ -11,6 +11,11 @@ interface ApiService {
         @Body request: LoginRequest
     ): Response<AuthResponse>
     
+    @POST("api/auth")
+    suspend fun verifySession(
+        @Body request: AuthRequest
+    ): Response<AuthResponse>
+    
     @GET("api/time-entries")
     suspend fun getTimeEntries(
         @Header("Authorization") token: String
@@ -49,9 +54,14 @@ data class LoginRequest(
     val password: String
 )
 
+data class AuthRequest(
+    val action: String,
+    val sessionToken: String?
+)
+
 data class AuthResponse(
-    val token: String,
     val user: User,
+    val token: String,
     val expiresAt: String
 )
 

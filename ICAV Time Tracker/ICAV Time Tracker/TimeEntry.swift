@@ -12,6 +12,7 @@ struct TimeEntry: Identifiable, Codable {
     let userId: String
     let technicianName: String
     let customerName: String
+    
     var clockInTime: Date?
     var clockOutTime: Date?
     var lunchStartTime: Date?
@@ -23,8 +24,10 @@ struct TimeEntry: Identifiable, Codable {
     var serverId: String? // ID from the server after successful sync
     var isSynced: Bool = false // Whether this entry has been synced to server
     var needsSync: Bool = false // Whether this entry has local changes that need syncing
-    var markedForDeletion: Bool = false // Whether this entry should be deleted from server
     var lastModified: Date = Date() // When this entry was last modified locally
+    
+    // Deletion tracking
+    var markedForDeletion: Bool = false // Whether this entry is marked for deletion
     
     // Custom initializer to generate UUID
     init(userId: String, technicianName: String, customerName: String, clockInTime: Date, clockOutTime: Date? = nil, lunchStartTime: Date? = nil, lunchEndTime: Date? = nil, driveStartTime: Date? = nil, driveEndTime: Date? = nil) {
@@ -134,6 +137,14 @@ struct TimeEntry: Identifiable, Codable {
     
     mutating func markForDeletion() {
         markedForDeletion = true
+        needsSync = true
+        lastModified = Date()
+    }
+    
+
+    
+    mutating func unmarkForDeletion() {
+        markedForDeletion = false
         needsSync = true
         lastModified = Date()
     }
