@@ -1,0 +1,13 @@
+{
+  "name": "icav-time-tracker-api",
+  "version": "1.0.0",
+  "description": "API functions for ICAV Time Tracker",
+  "main": "index.js",
+  "dependencies": {
+    "@vercel/postgres": "^0.7.2",
+    "bcryptjs": "^2.4.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
