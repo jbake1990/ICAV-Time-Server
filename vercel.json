@@ -1,6 +1,39 @@
 {
+  "version": 2,
   "buildCommand": "cd v2-server/WebApp && npm install && npm run build",
   "outputDirectory": "v2-server/WebApp/build",
   "installCommand": "cd v2-server/WebApp && npm install",
-  "framework": "create-react-app"
+  "framework": "create-react-app",
+  "functions": {
+    "v2-server/WebApp/api/**/*.js": {
+      "maxDuration": 30
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "v2-server/WebApp/api/$1",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+      }
+    },
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/favicon.ico"
+    },
+    {
+      "src": "/manifest.json",
+      "dest": "/manifest.json"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
 } 
